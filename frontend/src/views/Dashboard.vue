@@ -3,7 +3,7 @@
     <header class="dashboard-header">
       <div class="dashboard-header-content">
         <div class="user-welcome">
-          <h1>欢迎回来, {{ username }}</h1>
+          <h1>欢迎回来, {{ nickname }}</h1>
           <p class="last-login">上次登录: {{ lastLoginTime }}</p>
         </div>
         <button class="logout-btn" @click="handleLogout">
@@ -19,9 +19,9 @@
           <div class="profile-sidebar">
             <div class="avatar-wrapper">
               <el-avatar :size="120" :src="avatarUrl">
-                {{ username?.charAt(0)?.toUpperCase() }}
+                {{ nickname?.charAt(0)?.toUpperCase() }}
               </el-avatar>
-              <h2>{{ username }}</h2>
+              <h2>{{ nickname }}</h2>
               <p class="user-role">普通用户</p>
               <button class="change-avatar-btn">更换头像</button>
             </div>
@@ -48,6 +48,10 @@
               <div class="info-item">
                 <label>用户名</label>
                 <span>{{ username }}</span>
+              </div>
+              <div class="info-item">
+                <label>昵称</label>
+                <span>{{ nickname }}</span>
               </div>
               <div class="info-item">
                 <label>注册时间</label>
@@ -123,9 +127,10 @@ import axios from 'axios'
 
 const router = useRouter()
 const username = ref(localStorage.getItem('username') || '访客')
+const nickname = ref(localStorage.getItem('nickname') || username.value)
 const avatarUrl = ref('')
 const lastLoginTime = ref(new Date().toLocaleString())
-const registrationDate = ref('2024-02-27') // 这里应该从后端获取
+const registrationDate = ref('2024-02-27')
 
 // 模拟的最近活动数据
 const recentActivities = ref([
@@ -183,7 +188,19 @@ onMounted(() => {
     return
   }
   
-  // 这里可以添加获取用户详细信息的API调用
+  // 获取用户详细信息
+  axios.get('http://localhost:5000/api/user/profile', {
+    headers: { 'Authorization': `Bearer ${token}` }
+  })
+  .then(response => {
+    const userData = response.data.data
+    username.value = userData.username
+    nickname.value = userData.nickname || userData.username
+    registrationDate.value = new Date(userData.created_at).toLocaleDateString()
+  })
+  .catch(error => {
+    console.error('获取用户信息失败:', error)
+  })
 })
 </script>
 

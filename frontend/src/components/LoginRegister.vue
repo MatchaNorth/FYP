@@ -99,10 +99,25 @@
                   id="register-username"
                   type="text" 
                   v-model="registerForm.username" 
-                  placeholder="3-20个字符"
+                  placeholder="3-20个字符，用于登录"
                   @blur="validateField('register', 'username')"
                 >
                 <span class="error-message" v-if="registerErrors.username">{{ registerErrors.username }}</span>
+              </div>
+
+              <div class="form-group">
+                <label for="register-nickname">
+                  <i class="el-icon-user"></i>
+                  昵称
+                </label>
+                <input 
+                  id="register-nickname"
+                  type="text" 
+                  v-model="registerForm.nickname" 
+                  placeholder="选填，2-20个字符，用于显示"
+                  @blur="validateField('register', 'nickname')"
+                >
+                <span class="error-message" v-if="registerErrors.nickname">{{ registerErrors.nickname }}</span>
               </div>
 
               <div class="form-group">
@@ -171,6 +186,7 @@ const loginForm = reactive({
 
 const registerForm = reactive({
   username: '',
+  nickname: '',
   password: ''
 })
 
@@ -181,6 +197,7 @@ const loginErrors = reactive({
 
 const registerErrors = reactive({
   username: '',
+  nickname: '',
   password: ''
 })
 
@@ -190,13 +207,18 @@ const validateField = (formType, field) => {
 
   errors[field] = ''
 
-  if (!form[field]) {
+  if (field !== 'nickname' && !form[field]) {
     errors[field] = `请输入${field === 'username' ? '用户名' : '密码'}`
     return false
   }
 
   if (field === 'username' && (form[field].length < 3 || form[field].length > 20)) {
     errors[field] = '用户名长度在 3 到 20 个字符'
+    return false
+  }
+
+  if (field === 'nickname' && form[field] && (form[field].length < 2 || form[field].length > 20)) {
+    errors[field] = '昵称长度在 2 到 20 个字符'
     return false
   }
 
@@ -261,6 +283,7 @@ const handleRegister = async () => {
     })
     activeTab.value = 'login'
     registerForm.username = ''
+    registerForm.nickname = ''
     registerForm.password = ''
   } catch (error) {
     ElMessage({

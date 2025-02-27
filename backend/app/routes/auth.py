@@ -24,7 +24,11 @@ def register():
 
     # 创建新用户
     hashed_password = generate_password_hash(data['password'], method='scrypt')
-    new_user = User(username=data['username'], password=hashed_password)
+    new_user = User(
+        username=data['username'],
+        nickname=data.get('nickname'),
+        password=hashed_password
+    )
     
     try:
         db.session.add(new_user)
@@ -32,7 +36,7 @@ def register():
         return jsonify({
             'code': 200,
             'message': '注册成功',
-            'data': {'username': new_user.username}
+            'data': new_user.to_dict()
         })
     except Exception as e:
         db.session.rollback()
@@ -66,5 +70,5 @@ def login():
     return jsonify({
         'code': 200,
         'message': '登录成功',
-        'data': {'username': user.username}
+        'data': user.to_dict()
     })

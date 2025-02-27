@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager, create_access_token
 import bcrypt
 from datetime import datetime, timedelta
@@ -20,6 +21,7 @@ app.config.update(
 # 初始化扩展
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
+migrate = Migrate(app, db)
 
 # 用户模型
 class User(db.Model):
@@ -27,12 +29,22 @@ class User(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    nickname = db.Column(db.String(80))
     password = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    def __init__(self, username, password):
+    def __init__(self, username, password, nickname=None):
         self.username = username
         self.password = password
+        self.nickname = nickname
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'nickname': self.nickname or self.username,
+            'created_at': self.created_at.isoformat()
+        }
 
 # 路由
 @app.route('/api/auth/register', methods=['POST'])
