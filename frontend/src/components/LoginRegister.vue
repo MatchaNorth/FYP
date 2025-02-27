@@ -16,7 +16,7 @@
             <button 
               class="tab-btn" 
               :class="{ active: activeTab === 'login' }" 
-              @click="activeTab = 'login'"
+              @click="switchTab('login')"
             >
               <i class="el-icon-user"></i>
               登录
@@ -24,7 +24,7 @@
             <button 
               class="tab-btn" 
               :class="{ active: activeTab === 'register' }" 
-              @click="activeTab = 'register'"
+              @click="switchTab('register')"
             >
               <i class="el-icon-plus"></i>
               注册
@@ -33,7 +33,7 @@
 
           <div class="form-container" :class="{ 'slide-left': activeTab === 'login', 'slide-right': activeTab === 'register' }">
             <!-- 登录表单 -->
-            <form v-show="activeTab === 'login'" @submit.prevent="handleLogin" class="auth-form">
+            <form v-show="activeTab === 'login'" @submit.prevent="handleLogin" class="auth-form" :class="{ active: activeTab === 'login' }">
               <div class="form-group">
                 <label for="login-username">
                   <i class="el-icon-user"></i>
@@ -89,7 +89,7 @@
             </form>
 
             <!-- 注册表单 -->
-            <form v-show="activeTab === 'register'" @submit.prevent="handleRegister" class="auth-form">
+            <form v-show="activeTab === 'register'" @submit.prevent="handleRegister" class="auth-form" :class="{ active: activeTab === 'register' }">
               <div class="form-group">
                 <label for="register-username">
                   <i class="el-icon-user"></i>
@@ -178,6 +178,11 @@ const showLoginPassword = ref(false)
 const showRegisterPassword = ref(false)
 const rememberMe = ref(false)
 const agreeToTerms = ref(false)
+
+const switchTab = (tab) => {
+  if (activeTab.value === tab) return
+  activeTab.value = tab
+}
 
 const loginForm = reactive({
   username: '',
@@ -398,7 +403,12 @@ const handleRegister = async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 182, 193, 0.4) 0%,
+    rgba(173, 216, 230, 0.4) 50%,
+    rgba(255, 255, 224, 0.4) 100%
+  );
   padding: 20px;
   box-sizing: border-box;
   position: fixed;
@@ -406,6 +416,49 @@ const handleRegister = async () => {
   left: 0;
   right: 0;
   bottom: 0;
+  overflow: hidden;
+}
+
+/* 添加漂浮的气泡效果 */
+.login-register-container::before,
+.login-register-container::after {
+  content: '';
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 182, 193, 0.3),
+    rgba(173, 216, 230, 0.3)
+  );
+  animation: float 15s infinite ease-in-out;
+}
+
+.login-register-container::before {
+  top: -150px;
+  left: -150px;
+}
+
+.login-register-container::after {
+  bottom: -150px;
+  right: -150px;
+  animation-delay: -7.5s;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(50px, 50px) scale(1.1);
+  }
+  50% {
+    transform: translate(0, 100px) scale(1);
+  }
+  75% {
+    transform: translate(-50px, 50px) scale(0.9);
+  }
 }
 
 .auth-content {
@@ -413,14 +466,30 @@ const handleRegister = async () => {
   max-width: 1000px;
   display: grid;
   grid-template-columns: 1fr 1.5fr;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.7);
   border-radius: 20px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  animation: appear 0.6s ease-out;
+  transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .brand-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, rgba(255, 182, 193, 0.8) 0%, rgba(173, 216, 230, 0.8) 100%);
   padding: 60px 40px;
   color: white;
   display: flex;
@@ -428,6 +497,8 @@ const handleRegister = async () => {
   justify-content: center;
   position: relative;
   overflow: hidden;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
 }
 
 .brand-section::before {
@@ -458,23 +529,39 @@ const handleRegister = async () => {
   font-size: 16px;
   opacity: 0.9;
   line-height: 1.6;
+  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.brand-description.slide-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.brand-description.slide-leave {
+  opacity: 0;
+  transform: translateY(-20px);
 }
 
 .form-section {
   padding: 40px;
-  background: white;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .form-card {
   max-width: 400px;
   margin: 0 auto;
+  transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .tabs {
   display: flex;
   gap: 20px;
   margin-bottom: 32px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid rgba(229, 231, 235, 0.5);
   padding-bottom: 16px;
 }
 
@@ -485,15 +572,21 @@ const handleRegister = async () => {
   font-size: 16px;
   color: #6b7280;
   cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
+  overflow: hidden;
 }
 
-.tab-btn i {
-  font-size: 18px;
+.tab-btn::before {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(135deg, #ff69b4, #4f46e5);
+  transform: scaleX(0);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .tab-btn.active {
@@ -501,33 +594,85 @@ const handleRegister = async () => {
   font-weight: 500;
 }
 
-.tab-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: -18px;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: #4f46e5;
-  border-radius: 2px;
+.tab-btn.active::before {
+  transform: scaleX(1);
 }
 
 .form-container {
   position: relative;
-  transition: all 0.3s ease-in-out;
+  min-height: 300px;
+  height: auto;
+  transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .auth-form {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: absolute;
+  width: 100%;
+  height: auto;
+}
+
+.auth-form.active {
+  opacity: 1;
+  transform: scale(1);
+  position: relative;
+}
+
+/* 登录表单和注册表单的特定高度 */
+.auth-form[v-show="activeTab === 'login'"] {
+  min-height: 320px;
+}
+
+.auth-form[v-show="activeTab === 'register'"] {
+  min-height: 420px;
+}
+
+/* 果冻效果的切换动画 */
+.slide-left {
+  transform: translateX(0) scale(1);
+  animation: jellyLeft 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.slide-right {
+  transform: translateX(0) scale(1);
+  animation: jellyRight 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes jellyLeft {
+  0% { transform: translateX(100%) scale(0.8); }
+  40% { transform: translateX(0) scale(1.1); }
+  70% { transform: translateX(0) scale(0.95); }
+  100% { transform: translateX(0) scale(1); }
+}
+
+@keyframes jellyRight {
+  0% { transform: translateX(-100%) scale(0.8); }
+  40% { transform: translateX(0) scale(1.1); }
+  70% { transform: translateX(0) scale(0.95); }
+  100% { transform: translateX(0) scale(1); }
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: formGroupEnter 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
+
+@keyframes formGroupEnter {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.form-group:nth-child(1) { animation-delay: 0.1s; }
+.form-group:nth-child(2) { animation-delay: 0.2s; }
+.form-group:nth-child(3) { animation-delay: 0.3s; }
 
 .form-group label {
   color: #374151;
@@ -536,26 +681,34 @@ const handleRegister = async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.form-group label i {
-  color: #6b7280;
-  font-size: 16px;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              color 0.3s ease;
 }
 
 .form-group input {
   padding: 12px 16px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid rgba(229, 231, 235, 0.5);
   border-radius: 8px;
   font-size: 15px;
-  transition: all 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   width: 100%;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  transform-origin: left;
 }
 
 .form-group input:focus {
   border-color: #4f46e5;
   outline: none;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+  background: rgba(255, 255, 255, 0.95);
+  transform: scale(1.02);
+}
+
+.form-group input:focus + label {
+  transform: translateY(-2px);
+  color: #4f46e5;
 }
 
 .password-input {
@@ -592,6 +745,16 @@ const handleRegister = async () => {
   justify-content: space-between;
   align-items: center;
   font-size: 14px;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeSlideUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s forwards;
+}
+
+@keyframes fadeSlideUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .remember-me {
@@ -619,6 +782,9 @@ const handleRegister = async () => {
   gap: 4px;
   font-size: 14px;
   color: #4b5563;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeSlideUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s forwards;
 }
 
 .terms-link {
@@ -632,48 +798,46 @@ const handleRegister = async () => {
 }
 
 .submit-btn {
-  background: #4f46e5;
-  color: white;
+  background: linear-gradient(135deg, #ff69b4, #4f46e5);
   border: none;
   padding: 12px 24px;
   border-radius: 8px;
-  font-size: 16px;
+  color: white;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  background-size: 200% auto;
+  transform-origin: center;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: buttonEnter 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s forwards;
 }
 
-.submit-btn:hover {
-  background: #4338ca;
-  transform: translateY(-1px);
-}
-
-.submit-btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.submit-btn i {
-  font-size: 18px;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
+@keyframes buttonEnter {
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-/* 响应式设计 */
+.submit-btn:hover {
+  background-position: right center;
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+}
+
+.submit-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.submit-btn:disabled {
+  background: linear-gradient(135deg, #d1d5db, #9ca3af);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* 响应式设计调整 */
 @media (max-width: 768px) {
   .auth-content {
     grid-template-columns: 1fr;
@@ -683,39 +847,15 @@ const handleRegister = async () => {
     padding: 40px 20px;
     text-align: center;
   }
-
-  .form-section {
-    padding: 30px 20px;
-  }
-
-  .form-card {
-    max-width: 100%;
-  }
 }
 
 @media (max-width: 480px) {
   .login-register-container {
-    padding: 0;
+    padding: 16px;
   }
 
   .auth-content {
-    border-radius: 0;
-    min-height: 100vh;
-  }
-
-  .tabs {
-    gap: 10px;
-  }
-
-  .tab-btn {
-    padding: 8px 12px;
-    font-size: 14px;
-  }
-
-  .form-options {
-    flex-direction: column;
-    gap: 12px;
-    align-items: flex-start;
+    border-radius: 16px;
   }
 }
 </style>
