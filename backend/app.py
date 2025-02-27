@@ -5,10 +5,19 @@ from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, jwt_required
 import bcrypt
 from datetime import datetime, timedelta
+import re
+from urllib.parse import urlparse, parse_qs
+import pytz
 
 # 创建Flask应用
 app = Flask(__name__)
 CORS(app)
+
+# 设置中国时区
+CN_TIMEZONE = pytz.timezone('Asia/Shanghai')
+
+def get_cn_datetime():
+    return datetime.now(CN_TIMEZONE)
 
 # 配置
 app.config.update(
@@ -51,6 +60,11 @@ class User(db.Model):
     password = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
+    # 小黑盒相关字段
+    heybox_id = db.Column(db.String(20))  # 小黑盒ID
+    heybox_nickname = db.Column(db.String(80))  # 小黑盒昵称
+    heybox_avatar = db.Column(db.String(255))  # 小黑盒头像URL
+    heybox_profile = db.Column(db.String(255))  # 小黑盒个人主页URL
 
     def __init__(self, username, password, nickname=None):
         self.username = username
@@ -64,7 +78,11 @@ class User(db.Model):
             'nickname': self.nickname or self.username,
             'created_at': self.created_at.isoformat(),
             'last_login': self.last_login.isoformat() if self.last_login else None,
-            'days_since_registration': (datetime.utcnow() - self.created_at).days
+            'days_since_registration': (datetime.utcnow() - self.created_at).days,
+            'heybox_id': self.heybox_id,
+            'heybox_nickname': self.heybox_nickname,
+            'heybox_avatar': self.heybox_avatar,
+            'heybox_profile': self.heybox_profile
         }
 
 # 路由
@@ -173,13 +191,14 @@ def login():
         # 验证密码
         if bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
             # 更新最后登录时间
-            user.last_login = datetime.utcnow()
+            user.last_login = get_cn_datetime()
             
             # 记录登录活动
             activity = UserActivity(
                 user_id=user.id,
                 activity_type='login',
-                description='登录系统'
+                description='登录系统',
+                created_at=get_cn_datetime()
             )
             db.session.add(activity)
             db.session.commit()
@@ -196,6 +215,63 @@ def login():
     except Exception as e:
         print(f"登录错误: {str(e)}")
         return jsonify({'message': '登录失败', 'error': str(e)}), 500
+
+@app.route('/api/user/bind-heybox', methods=['POST'])
+@jwt_required()
+def bind_heybox():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        data = request.get_json()
+        profile_url = data.get('profile_url')
+        
+        if not profile_url:
+            return jsonify({'message': '请提供小黑盒个人主页链接'}), 400
+            
+        # 解析小黑盒链接
+        heybox_id = None
+        if 'xiaoheihe.cn/app/user/profile/' in profile_url:
+            heybox_id = profile_url.split('profile/')[-1]
+        elif 'web.xiaoheihe.cn/bbs/user_profile_share' in profile_url:
+            parsed_url = urlparse(profile_url)
+            query_params = parse_qs(parsed_url.query)
+            heybox_id = query_params.get('user_id', [None])[0]
+            
+        if not heybox_id:
+            return jsonify({'message': '无效的小黑盒个人主页链接'}), 400
+            
+        # TODO: 这里应该调用小黑盒的API获取用户信息
+        # 目前先使用默认头像
+        default_avatar = f'https://api.xiaoheihe.cn/account/avatar/{heybox_id}'
+        
+        # 更新用户信息
+        user.heybox_id = heybox_id
+        user.heybox_profile = profile_url
+        user.heybox_avatar = default_avatar
+        
+        # 记录绑定活动
+        activity = UserActivity(
+            user_id=user.id,
+            activity_type='profile',
+            description='绑定小黑盒账号',
+            created_at=get_cn_datetime()
+        )
+        db.session.add(activity)
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '绑定成功',
+            'data': user.to_dict()
+        })
+        
+    except Exception as e:
+        print(f"绑定小黑盒账号错误: {str(e)}")
+        return jsonify({'message': '绑定失败'}), 500
 
 # 初始化数据库
 with app.app_context():

@@ -23,7 +23,16 @@
               </el-avatar>
               <h2>{{ nickname }}</h2>
               <p class="user-role">普通用户</p>
-              <button class="change-avatar-btn">更换头像</button>
+              <div class="profile-actions">
+                <button class="action-btn" @click="heyboxDialogVisible = true">
+                  <i class="el-icon-link"></i>
+                  绑定小黑盒
+                </button>
+                <button class="action-btn">
+                  <i class="el-icon-picture"></i>
+                  更换头像
+                </button>
+              </div>
             </div>
             
             <div class="quick-stats">
@@ -116,6 +125,38 @@
         </section>
       </div>
     </main>
+
+    <!-- 绑定小黑盒对话框 -->
+    <el-dialog
+      v-model="heyboxDialogVisible"
+      title="绑定小黑盒账号"
+      width="500px"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+    >
+      <div class="bind-heybox-form">
+        <p class="bind-desc">请输入您的小黑盒个人主页链接，例如：</p>
+        <p class="bind-example">https://www.xiaoheihe.cn/app/user/profile/19453679</p>
+        <p class="bind-example">https://web.xiaoheihe.cn/bbs/user_profile_share?user_id=19453679</p>
+        <el-input
+          v-model="heyboxProfileUrl"
+          placeholder="请输入小黑盒个人主页链接"
+          clearable
+        />
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="heyboxDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            @click="handleBindHeybox"
+            :loading="isBinding"
+          >
+            绑定
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -132,6 +173,9 @@ const registrationDate = ref('')
 const lastLoginTime = ref('首次登录')
 const avatarUrl = ref('')
 const daysSinceRegistration = ref(0)
+const heyboxDialogVisible = ref(false)
+const heyboxProfileUrl = ref('')
+const isBinding = ref(false)
 
 const recentActivities = ref([])
 
@@ -202,6 +246,44 @@ const handleLogout = async () => {
   }
 }
 
+// 绑定小黑盒账号
+const handleBindHeybox = async () => {
+  if (!heyboxProfileUrl.value) {
+    ElMessage.warning('请输入小黑盒个人主页链接')
+    return
+  }
+  
+  try {
+    isBinding.value = true
+    const token = localStorage.getItem('token')
+    const response = await axios.post(
+      'http://localhost:5000/api/user/bind-heybox',
+      { profile_url: heyboxProfileUrl.value },
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    )
+    
+    if (response.data.code === 200) {
+      ElMessage.success('绑定成功')
+      heyboxDialogVisible.value = false
+      // 更新用户信息
+      const userData = response.data.data
+      if (userData.heybox_avatar) {
+        avatarUrl.value = userData.heybox_avatar
+      }
+      if (userData.heybox_nickname) {
+        nickname.value = userData.heybox_nickname
+      }
+      // 刷新活动记录
+      fetchUserActivities()
+    }
+  } catch (error) {
+    console.error('绑定小黑盒账号失败:', error)
+    ElMessage.error(error.response?.data?.message || '绑定失败')
+  } finally {
+    isBinding.value = false
+  }
+}
+
 // 检查登录状态
 onMounted(() => {
   const token = localStorage.getItem('token')
@@ -218,6 +300,10 @@ onMounted(() => {
     const userData = response.data.data
     username.value = userData.username
     nickname.value = userData.nickname || userData.username
+    // 设置头像
+    if (userData.heybox_avatar) {
+      avatarUrl.value = userData.heybox_avatar
+    }
     registrationDate.value = new Date(userData.created_at).toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
@@ -483,7 +569,15 @@ onMounted(() => {
   margin: 0 0 16px 0;
 }
 
-.change-avatar-btn {
+.profile-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.action-btn {
+  flex: 1;
   background: none;
   border: 2px solid #e5e7eb;
   padding: 8px 16px;
@@ -492,11 +586,38 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
-.change-avatar-btn:hover {
+.action-btn:hover {
   background: #4f46e5;
   color: white;
+}
+
+.bind-heybox-form {
+  padding: 0 20px;
+}
+
+.bind-desc {
+  margin: 0 0 12px;
+  color: #374151;
+}
+
+.bind-example {
+  margin: 4px 0;
+  color: #6b7280;
+  font-size: 13px;
+  font-family: monospace;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 20px;
 }
 
 .quick-stats {
