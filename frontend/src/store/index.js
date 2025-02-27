@@ -3,19 +3,14 @@ import { createStore } from 'vuex'
 export default createStore({
   state: {
     // 定义应用的状态
-    count: 0,
     user: null
   },
   getters: {
     // 获取状态的计算属性
-    getCount: state => state.count,
     getUser: state => state.user
   },
   mutations: {
     // 更新状态的方法
-    INCREMENT(state) {
-      state.count++
-    },
     SET_USER(state, user) {
       state.user = user
     }
