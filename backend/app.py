@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_jwt_extended import JWTManager, create_access_token
+from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, jwt_required
 import bcrypt
 from datetime import datetime, timedelta
 
@@ -32,6 +32,7 @@ class User(db.Model):
     nickname = db.Column(db.String(80))
     password = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
 
     def __init__(self, username, password, nickname=None):
         self.username = username
@@ -43,16 +44,38 @@ class User(db.Model):
             'id': self.id,
             'username': self.username,
             'nickname': self.nickname or self.username,
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat(),
+            'last_login': self.last_login.isoformat() if self.last_login else None,
+            'days_since_registration': (datetime.utcnow() - self.created_at).days
         }
 
 # 路由
+@app.route('/api/user/profile', methods=['GET'])
+@jwt_required()
+def get_user_profile():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': user.to_dict()
+        })
+    except Exception as e:
+        print(f"获取用户信息错误: {str(e)}")
+        return jsonify({'message': '获取用户信息失败'}), 500
+
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     try:
         data = request.get_json()
         username = data.get('username')
         password = data.get('password')
+        nickname = data.get('nickname')
 
         if not username or not password:
             return jsonify({'message': '用户名和密码不能为空'}), 400
@@ -65,7 +88,11 @@ def register():
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         
         # 创建新用户
-        new_user = User(username=username, password=hashed_password)
+        new_user = User(
+            username=username,
+            password=hashed_password.decode('utf-8'),
+            nickname=nickname
+        )
         db.session.add(new_user)
         db.session.commit()
         
@@ -93,6 +120,10 @@ def login():
 
         # 验证密码
         if bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
+            # 更新最后登录时间
+            user.last_login = datetime.utcnow()
+            db.session.commit()
+            
             access_token = create_access_token(identity=username)
             return jsonify({
                 'message': '登录成功',

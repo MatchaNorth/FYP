@@ -29,7 +29,7 @@
             <div class="quick-stats">
               <div class="stat-item">
                 <span class="stat-label">注册天数</span>
-                <span class="stat-value">180天</span>
+                <span class="stat-value">{{ daysSinceRegistration }}天</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">账号状态</span>
@@ -126,11 +126,12 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 
 const router = useRouter()
-const username = ref(localStorage.getItem('username') || '访客')
-const nickname = ref(localStorage.getItem('nickname') || username.value)
+const username = ref('')
+const nickname = ref('')
+const registrationDate = ref('')
+const lastLoginTime = ref('首次登录')
 const avatarUrl = ref('')
-const lastLoginTime = ref(new Date().toLocaleString())
-const registrationDate = ref('2024-02-27')
+const daysSinceRegistration = ref(0)
 
 // 模拟的最近活动数据
 const recentActivities = ref([
@@ -196,10 +197,30 @@ onMounted(() => {
     const userData = response.data.data
     username.value = userData.username
     nickname.value = userData.nickname || userData.username
-    registrationDate.value = new Date(userData.created_at).toLocaleDateString()
+    registrationDate.value = new Date(userData.created_at).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+    daysSinceRegistration.value = userData.days_since_registration
+    if (userData.last_login) {
+      lastLoginTime.value = new Date(userData.last_login).toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    }
   })
   .catch(error => {
     console.error('获取用户信息失败:', error)
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token')
+      router.push('/login')
+    }
   })
 })
 </script>
