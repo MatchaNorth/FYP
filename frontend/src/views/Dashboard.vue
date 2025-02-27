@@ -190,11 +190,12 @@ onMounted(() => {
 <style scoped>
 .dashboard-container {
   min-height: 100vh;
-  width: 100vw;
+  width: 100%;
   background-color: #f3f4f6;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
+  align-items: center;
+  justify-content: center;
 }
 
 .dashboard-header {
@@ -223,6 +224,8 @@ onMounted(() => {
   margin: 0 auto;
   padding: 40px;
   box-sizing: border-box;
+  overflow-x: hidden;
+
 }
 
 .dashboard-content {

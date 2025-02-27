@@ -13,6 +13,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+#app {
+  padding: 0;
+  width: 100%;
+  display: flex;
+}
+
 * {
   box-sizing: border-box;
 }
