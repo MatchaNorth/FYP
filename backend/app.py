@@ -23,6 +23,24 @@ db = SQLAlchemy(app)
 jwt = JWTManager(app)
 migrate = Migrate(app, db)
 
+# 用户活动模型
+class UserActivity(db.Model):
+    __tablename__ = 'user_activities'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    activity_type = db.Column(db.String(50), nullable=False)  # 活动类型：登录、注册、修改密码等
+    description = db.Column(db.String(255), nullable=False)   # 活动描述
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'activity_type': self.activity_type,
+            'description': self.description,
+            'created_at': self.created_at.isoformat()
+        }
+
 # 用户模型
 class User(db.Model):
     __tablename__ = 'users'
@@ -69,6 +87,31 @@ def get_user_profile():
         print(f"获取用户信息错误: {str(e)}")
         return jsonify({'message': '获取用户信息失败'}), 500
 
+@app.route('/api/user/activities', methods=['GET'])
+@jwt_required()
+def get_user_activities():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        # 获取用户最近的20条活动记录
+        activities = UserActivity.query.filter_by(user_id=user.id)\
+            .order_by(UserActivity.created_at.desc())\
+            .limit(20)\
+            .all()
+            
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': [activity.to_dict() for activity in activities]
+        })
+    except Exception as e:
+        print(f"获取用户活动记录错误: {str(e)}")
+        return jsonify({'message': '获取用户活动记录失败'}), 500
+
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     try:
@@ -94,6 +137,15 @@ def register():
             nickname=nickname
         )
         db.session.add(new_user)
+        db.session.commit()
+        
+        # 记录注册活动
+        activity = UserActivity(
+            user_id=new_user.id,
+            activity_type='register',
+            description='注册成功'
+        )
+        db.session.add(activity)
         db.session.commit()
         
         return jsonify({'message': '注册成功'}), 201
@@ -122,6 +174,14 @@ def login():
         if bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
             # 更新最后登录时间
             user.last_login = datetime.utcnow()
+            
+            # 记录登录活动
+            activity = UserActivity(
+                user_id=user.id,
+                activity_type='login',
+                description='登录系统'
+            )
+            db.session.add(activity)
             db.session.commit()
             
             access_token = create_access_token(identity=username)

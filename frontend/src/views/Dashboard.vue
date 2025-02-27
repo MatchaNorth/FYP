@@ -133,24 +133,45 @@ const lastLoginTime = ref('首次登录')
 const avatarUrl = ref('')
 const daysSinceRegistration = ref(0)
 
-// 模拟的最近活动数据
-const recentActivities = ref([
-  {
-    content: '登录系统',
-    time: new Date().toLocaleString(),
-    type: 'primary'
-  },
-  {
-    content: '更新个人信息',
-    time: '2024-02-26 15:30:00',
-    type: 'success'
-  },
-  {
-    content: '修改密码',
-    time: '2024-02-25 10:20:00',
-    type: 'warning'
+const recentActivities = ref([])
+
+// 获取用户活动记录
+const fetchUserActivities = async () => {
+  try {
+    const token = localStorage.getItem('token')
+    const response = await axios.get('http://localhost:5000/api/user/activities', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    
+    if (response.data.code === 200) {
+      recentActivities.value = response.data.data.map(activity => ({
+        content: activity.description,
+        time: new Date(activity.created_at).toLocaleString('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        type: getActivityType(activity.activity_type)
+      }))
+    }
+  } catch (error) {
+    console.error('获取用户活动记录失败:', error)
   }
-])
+}
+
+// 根据活动类型返回对应的样式
+const getActivityType = (type) => {
+  const typeMap = {
+    'login': 'primary',    // 登录活动
+    'register': 'success', // 注册活动
+    'profile': 'info',     // 个人信息相关
+    'security': 'warning', // 安全相关
+    'article': 'success'   // 文章相关
+  }
+  return typeMap[type] || 'info'
+}
 
 const handleLogout = async () => {
   try {
@@ -214,6 +235,9 @@ onMounted(() => {
         minute: '2-digit'
       })
     }
+    
+    // 获取用户活动记录
+    fetchUserActivities()
   })
   .catch(error => {
     console.error('获取用户信息失败:', error)
