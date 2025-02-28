@@ -8,10 +8,31 @@ from datetime import datetime, timedelta
 import re
 from urllib.parse import urlparse, parse_qs
 import pytz
+import requests
+from bs4 import BeautifulSoup
 
 # 创建Flask应用
 app = Flask(__name__)
-CORS(app)
+
+# 配置CORS，允许所有跨域请求
+CORS(app, supports_credentials=True, resources={
+    r"/*": {
+        "origins": ["http://localhost:5173"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
+        "expose_headers": ["Content-Type", "Authorization"],
+        "max_age": 600
+    }
+})
+
+# 添加CORS处理
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 # 设置中国时区
 CN_TIMEZONE = pytz.timezone('Asia/Shanghai')
@@ -65,6 +86,7 @@ class User(db.Model):
     heybox_nickname = db.Column(db.String(80))  # 小黑盒昵称
     heybox_avatar = db.Column(db.String(255))  # 小黑盒头像URL
     heybox_profile = db.Column(db.String(255))  # 小黑盒个人主页URL
+    articles = db.relationship('Article', backref='author', lazy=True)
 
     def __init__(self, username, password, nickname=None):
         self.username = username
@@ -83,6 +105,33 @@ class User(db.Model):
             'heybox_nickname': self.heybox_nickname,
             'heybox_avatar': self.heybox_avatar,
             'heybox_profile': self.heybox_profile
+        }
+
+# 文章模型
+class Article(db.Model):
+    __tablename__ = 'articles'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    content_html = db.Column(db.Text)  # 存储转换后的HTML
+    summary = db.Column(db.String(500))  # 文章摘要
+    status = db.Column(db.String(20), default='draft')  # draft, published
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'content': self.content,
+            'content_html': self.content_html,
+            'summary': self.summary,
+            'status': self.status,
+            'author': self.author.username,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
         }
 
 # 路由
@@ -244,14 +293,55 @@ def bind_heybox():
         if not heybox_id:
             return jsonify({'message': '无效的小黑盒个人主页链接'}), 400
             
-        # TODO: 这里应该调用小黑盒的API获取用户信息
-        # 目前先使用默认头像
-        default_avatar = f'https://api.xiaoheihe.cn/account/avatar/{heybox_id}'
-        
-        # 更新用户信息
+        # 获取小黑盒用户信息
+        try:
+            # 使用小黑盒的API获取用户信息
+            api_url = f'https://api.xiaoheihe.cn/bbs/app/profile/user/info?userid={heybox_id}'
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'application/json',
+                'Referer': 'https://www.xiaoheihe.cn'
+            }
+            response = requests.get(api_url, headers=headers)
+            response.raise_for_status()  # 如果请求失败会抛出异常
+            
+            data = response.json()
+            if data.get('status') == 'ok':
+                user_info = data.get('result', {})
+                heybox_nickname = user_info.get('username', f'黑盒玩家{heybox_id}')
+                heybox_avatar = user_info.get('avatar', f'https://api.xiaoheihe.cn/account/avatar/{heybox_id}')
+            else:
+                raise Exception('API返回数据格式错误')
+                
+        except Exception as e:
+            print(f"获取小黑盒用户信息失败: {str(e)}")
+            # 尝试使用备用API
+            try:
+                api_url = f'https://api.xiaoheihe.cn/account/basic_info/{heybox_id}'
+                response = requests.get(api_url, headers=headers)
+                response.raise_for_status()
+                
+                data = response.json()
+                if data.get('status') == 'ok':
+                    user_info = data.get('result', {})
+                    heybox_nickname = user_info.get('nickname', f'黑盒玩家{heybox_id}')
+                    heybox_avatar = user_info.get('avatar', f'https://api.xiaoheihe.cn/account/avatar/{heybox_id}')
+                else:
+                    raise Exception('备用API返回数据格式错误')
+            except Exception as e2:
+                print(f"备用API也失败: {str(e2)}")
+                heybox_nickname = f'黑盒玩家{heybox_id}'
+                heybox_avatar = f'https://api.xiaoheihe.cn/account/avatar/{heybox_id}'
+            
+        print(f"获取到的昵称: {heybox_nickname}")
+        print(f"获取到的头像: {heybox_avatar}")
+            
+        # 设置小黑盒信息
         user.heybox_id = heybox_id
         user.heybox_profile = profile_url
-        user.heybox_avatar = default_avatar
+        user.heybox_avatar = heybox_avatar
+        user.nickname = heybox_nickname
+        user.heybox_nickname = heybox_nickname
         
         # 记录绑定活动
         activity = UserActivity(
@@ -272,6 +362,295 @@ def bind_heybox():
     except Exception as e:
         print(f"绑定小黑盒账号错误: {str(e)}")
         return jsonify({'message': '绑定失败'}), 500
+
+@app.route('/api/user/profile', methods=['PUT'])
+@jwt_required()
+def update_user_profile():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        data = request.get_json()
+        nickname = data.get('nickname')
+        
+        if nickname:
+            user.nickname = nickname
+            
+            # 记录修改资料活动
+            activity = UserActivity(
+                user_id=user.id,
+                activity_type='profile',
+                description='修改个人资料',
+                created_at=get_cn_datetime()
+            )
+            db.session.add(activity)
+            
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '更新成功',
+            'data': user.to_dict()
+        })
+        
+    except Exception as e:
+        print(f"更新用户资料错误: {str(e)}")
+        return jsonify({'message': '更新失败'}), 500
+
+@app.route('/api/user/activities/<int:activity_id>', methods=['DELETE'])
+@jwt_required()
+def delete_user_activity(activity_id):
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        activity = UserActivity.query.filter_by(id=activity_id, user_id=user.id).first()
+        
+        if not activity:
+            return jsonify({'message': '活动记录不存在'}), 404
+            
+        # 检查是否为不可删除的活动类型
+        if activity.activity_type in ['register', 'login']:
+            return jsonify({'message': '该活动记录不可删除'}), 403
+            
+        db.session.delete(activity)
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '删除成功'
+        })
+        
+    except Exception as e:
+        print(f"删除活动记录错误: {str(e)}")
+        return jsonify({'message': '删除失败'}), 500
+
+@app.route('/api/user/unbind-heybox', methods=['POST'])
+@jwt_required()
+def unbind_heybox():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        # 清除小黑盒相关信息
+        user.heybox_id = None
+        user.heybox_nickname = None
+        user.heybox_avatar = None
+        user.heybox_profile = None
+        
+        # 记录解绑活动
+        activity = UserActivity(
+            user_id=user.id,
+            activity_type='profile',
+            description='解绑小黑盒账号',
+            created_at=get_cn_datetime()
+        )
+        db.session.add(activity)
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '解绑成功',
+            'data': user.to_dict()
+        })
+        
+    except Exception as e:
+        print(f"解绑小黑盒账号错误: {str(e)}")
+        return jsonify({'message': '解绑失败'}), 500
+
+@app.route('/api/articles', methods=['GET'])
+@jwt_required()
+def get_articles():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        articles = Article.query.filter_by(author_id=user.id)\
+            .order_by(Article.updated_at.desc())\
+            .all()
+            
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': [article.to_dict() for article in articles]
+        })
+        
+    except Exception as e:
+        print(f"获取文章列表错误: {str(e)}")
+        return jsonify({'message': '获取文章列表失败'}), 500
+
+@app.route('/api/articles/<int:article_id>', methods=['GET'])
+@jwt_required()
+def get_article(article_id):
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        article = Article.query.filter_by(id=article_id, author_id=user.id).first()
+        
+        if not article:
+            return jsonify({'message': '文章不存在'}), 404
+            
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': article.to_dict()
+        })
+        
+    except Exception as e:
+        print(f"获取文章详情错误: {str(e)}")
+        return jsonify({'message': '获取文章详情失败'}), 500
+
+@app.route('/api/articles', methods=['POST'])
+@jwt_required()
+def create_article():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        data = request.get_json()
+        title = data.get('title')
+        content = data.get('content')
+        status = data.get('status', 'draft')
+        
+        if not title or not content:
+            return jsonify({'message': '标题和内容不能为空'}), 400
+            
+        # 创建新文章
+        article = Article(
+            title=title,
+            content=content,
+            author_id=user.id,
+            status=status
+        )
+        
+        # 生成摘要（取前100个字符）
+        article.summary = content[:100] if len(content) > 100 else content
+        
+        # 将Markdown转换为HTML
+        import markdown2
+        article.content_html = markdown2.markdown(content)
+        
+        db.session.add(article)
+        
+        # 记录活动
+        activity = UserActivity(
+            user_id=user.id,
+            activity_type='article',
+            description=f'{"发布" if status == "published" else "保存"}文章《{title}》',
+            created_at=get_cn_datetime()
+        )
+        db.session.add(activity)
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '创建成功',
+            'data': article.to_dict()
+        })
+        
+    except Exception as e:
+        print(f"创建文章错误: {str(e)}")
+        return jsonify({'message': '创建文章失败'}), 500
+
+@app.route('/api/articles/<int:article_id>', methods=['PUT'])
+@jwt_required()
+def update_article(article_id):
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        article = Article.query.filter_by(id=article_id, author_id=user.id).first()
+        
+        if not article:
+            return jsonify({'message': '文章不存在'}), 404
+            
+        data = request.get_json()
+        title = data.get('title')
+        content = data.get('content')
+        status = data.get('status')
+        
+        old_status = article.status
+        
+        if title:
+            article.title = title
+        if content:
+            article.content = content
+            article.summary = content[:100] if len(content) > 100 else content
+            import markdown2
+            article.content_html = markdown2.markdown(content)
+        if status:
+            article.status = status
+            
+        # 记录活动（仅在状态改变时）
+        if status and status != old_status:
+            activity = UserActivity(
+                user_id=user.id,
+                activity_type='article',
+                description=f'{"发布" if status == "published" else "保存"}文章《{article.title}》',
+                created_at=get_cn_datetime()
+            )
+            db.session.add(activity)
+            
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '更新成功',
+            'data': article.to_dict()
+        })
+        
+    except Exception as e:
+        print(f"更新文章错误: {str(e)}")
+        return jsonify({'message': '更新文章失败'}), 500
+
+@app.route('/api/articles/<int:article_id>', methods=['DELETE'])
+@jwt_required()
+def delete_article(article_id):
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        article = Article.query.filter_by(id=article_id, author_id=user.id).first()
+        
+        if not article:
+            return jsonify({'message': '文章不存在'}), 404
+            
+        db.session.delete(article)
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '删除成功'
+        })
+        
+    except Exception as e:
+        print(f"删除文章错误: {str(e)}")
+        return jsonify({'message': '删除文章失败'}), 500
 
 # 初始化数据库
 with app.app_context():

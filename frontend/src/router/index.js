@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import LoginRegister from '../components/LoginRegister.vue'
+import LoginRegister from '../views/LoginRegister.vue'
 import Dashboard from '../views/Dashboard.vue'
+import ArticleManager from '../views/ArticleManager.vue'
 
 const routes = [
   {
@@ -17,11 +18,17 @@ const routes = [
     name: 'Dashboard',
     component: Dashboard,
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/articles',
+    name: 'articles',
+    component: ArticleManager,
+    meta: { requiresAuth: true }
   }
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes
 })
 
