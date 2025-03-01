@@ -1,5 +1,4 @@
 <template>
-  <div>
     <HeadMenu />
     <div class="home-container">
       <header class="home-header glass-card">
@@ -75,7 +74,6 @@
         </div>
       </main>
     </div>
-  </div>
 </template>
 
 <script setup>
@@ -177,24 +175,31 @@ onMounted(() => {
 
 <style scoped>
 .home-container {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 104px 60px 40px;
-  min-height: 100vh;
+  width: 100%;
+  min-height: calc(100vh - 64px);
+  margin-top: 10rem;
+  margin: 0;
+  padding: 0;
   background: var(--bg-gradient);
+  display: flex;
+  flex-direction: column;
 }
 
 .home-header {
-  padding: 40px;
-  margin-bottom: 40px;
-  border-radius: 32px;
+  width: 100%;
+  padding: 40px 0;
+  margin: 0;
   background: var(--card-bg);
   backdrop-filter: blur(20px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .header-content {
-  margin-bottom: 32px;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto 32px;
+  padding: 0 60px;
 }
 
 .header-content h1 {
@@ -214,6 +219,10 @@ onMounted(() => {
 }
 
 .header-actions {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 60px;
   display: flex;
   gap: 24px;
   align-items: center;
@@ -279,16 +288,24 @@ onMounted(() => {
 }
 
 .articles-container {
-  margin-top: 40px;
+  flex: 1;
+  width: 100%;
+  padding: 40px 0;
+  margin: 0 auto;
 }
 
 .articles-grid {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 60px;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 32px;
 }
 
 .article-card {
+  height: 100%;
   padding: 32px;
   border-radius: 24px;
   background: var(--card-bg);
@@ -298,6 +315,8 @@ onMounted(() => {
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
 }
 
 .article-card::before {
@@ -320,6 +339,12 @@ onMounted(() => {
 
 .article-card:hover::before {
   opacity: 1;
+}
+
+.article-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .article-header {
@@ -370,12 +395,14 @@ onMounted(() => {
   -webkit-box-orient: vertical;
   overflow: hidden;
   min-height: 76px;
+  flex: 1;
 }
 
 .article-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: auto;
 }
 
 .meta-left, .meta-right {
@@ -423,6 +450,8 @@ onMounted(() => {
   background: var(--card-bg);
   border-radius: 32px;
   backdrop-filter: blur(20px);
+  margin: 0 auto;
+  max-width: 600px;
 }
 
 .empty-state i {
@@ -482,74 +511,79 @@ onMounted(() => {
 
 /* 响应式布局 */
 @media (max-width: 1440px) {
-  .home-container {
-    padding: 32px 40px;
-  }
-  
+  .header-content,
+  .header-actions,
   .articles-grid {
+    padding: 0 40px;
+  }
+
+  .articles-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 24px;
   }
   
-  .header-actions {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 16px;
-  }
-  
-  .search-box {
-    max-width: none;
+  .home-header {
+    padding: 32px 0;
   }
 }
 
 @media (max-width: 1024px) {
-  .home-container {
-    padding: 24px;
+  .header-content,
+  .header-actions,
+  .articles-grid {
+    padding: 0 24px;
+  }
+
+  .articles-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
   }
   
   .home-header {
-    padding: 32px;
-    margin-bottom: 32px;
+    padding: 24px 0;
   }
   
   .header-content h1 {
     font-size: 36px;
   }
-  
-  .articles-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
 }
 
 @media (max-width: 768px) {
-  .home-container {
-    padding: 16px;
+  .header-content,
+  .header-actions,
+  .articles-grid {
+    padding: 0 20px;
+  }
+
+  .articles-grid {
+    grid-template-columns: 1fr;
   }
   
   .home-header {
-    padding: 24px;
-    margin-bottom: 24px;
+    padding: 20px 0;
   }
   
   .header-content h1 {
     font-size: 28px;
   }
   
+  .header-actions {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .search-box {
+    max-width: none;
+  }
+  
   .filter-box {
+    width: 100%;
     overflow-x: auto;
     padding-bottom: 8px;
   }
   
   .filter-btn {
     white-space: nowrap;
-  }
-  
-  .article-card {
-    padding: 24px;
-  }
-  
-  .meta-left, .meta-right {
-    gap: 12px;
   }
 }
 </style> 

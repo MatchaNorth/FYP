@@ -110,6 +110,33 @@ class User(db.Model):
             'avatar': self.avatar
         }
 
+# 用户点赞记录模型
+class ArticleLike(db.Model):
+    __tablename__ = 'article_likes'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    article_id = db.Column(db.Integer, db.ForeignKey('articles.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # 添加唯一约束，确保用户不能重复点赞同一篇文章
+    __table_args__ = (db.UniqueConstraint('user_id', 'article_id', name='unique_user_article_like'),)
+
+# 文章浏览记录模型
+class ArticleView(db.Model):
+    __tablename__ = 'article_views'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    article_id = db.Column(db.Integer, db.ForeignKey('articles.id'), nullable=False)
+    ip_address = db.Column(db.String(50), nullable=False)  # 访问者IP
+    user_agent = db.Column(db.String(200))  # 浏览器标识
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # 添加索引以加快查询速度
+    __table_args__ = (
+        db.Index('idx_article_view_ip_time', 'article_id', 'ip_address', 'created_at'),
+    )
+
 # 文章模型
 class Article(db.Model):
     __tablename__ = 'articles'
@@ -126,6 +153,9 @@ class Article(db.Model):
     views = db.Column(db.Integer, default=0)  # 文章浏览量
     likes = db.Column(db.Integer, default=0)  # 文章点赞数
     
+    # 添加点赞关系
+    liked_by = db.relationship('User', secondary='article_likes', backref=db.backref('liked_articles', lazy='dynamic'))
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -135,7 +165,7 @@ class Article(db.Model):
             'summary': self.summary,
             'status': self.status,
             'author': self.author.username,
-            'author_avatar': self.author.avatar,  # 添加作者头像
+            'author_avatar': self.author.avatar,
             'views': self.views,
             'likes': self.likes,
             'created_at': self.created_at.isoformat(),
@@ -772,8 +802,30 @@ def increment_article_views(article_id):
         if not article:
             return jsonify({'message': '文章不存在'}), 404
             
-        article.views += 1
-        db.session.commit()
+        # 获取访问者信息
+        ip_address = request.remote_addr
+        user_agent = request.headers.get('User-Agent', '')
+        
+        # 检查是否在短时间内重复访问（1小时内同一IP只记录一次浏览）
+        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+        recent_view = ArticleView.query.filter(
+            ArticleView.article_id == article_id,
+            ArticleView.ip_address == ip_address,
+            ArticleView.created_at > one_hour_ago
+        ).first()
+        
+        if not recent_view:
+            # 记录新的浏览
+            view = ArticleView(
+                article_id=article_id,
+                ip_address=ip_address,
+                user_agent=user_agent
+            )
+            db.session.add(view)
+            
+            # 更新文章浏览量
+            article.views += 1
+            db.session.commit()
         
         return jsonify({
             'code': 200,
@@ -802,22 +854,38 @@ def toggle_article_like(article_id):
         if not article:
             return jsonify({'message': '文章不存在'}), 404
             
-        # 这里可以添加用户点赞记录表来防止重复点赞
-        # 现在先简单实现
-        article.likes += 1
+        # 检查是否已经点赞
+        existing_like = ArticleLike.query.filter_by(
+            user_id=user.id,
+            article_id=article_id
+        ).first()
+        
+        if existing_like:
+            # 如果已经点赞，则取消点赞
+            db.session.delete(existing_like)
+            article.likes -= 1
+            message = '取消点赞成功'
+        else:
+            # 如果未点赞，则添加点赞
+            like = ArticleLike(user_id=user.id, article_id=article_id)
+            db.session.add(like)
+            article.likes += 1
+            message = '点赞成功'
+            
         db.session.commit()
         
         return jsonify({
             'code': 200,
-            'message': '点赞成功',
+            'message': message,
             'data': {
-                'likes': article.likes
+                'likes': article.likes,
+                'is_liked': not existing_like
             }
         })
         
     except Exception as e:
         print(f"文章点赞错误: {str(e)}")
-        return jsonify({'message': '点赞失败'}), 500
+        return jsonify({'message': '操作失败'}), 500
 
 # 初始化数据库
 with app.app_context():
