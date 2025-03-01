@@ -18,11 +18,12 @@ app = Flask(__name__)
 
 # 配置CORS
 CORS(app, resources={
-    r"/*": {
+    r"/api/*": {
         "origins": ["http://localhost:5173"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-        "supports_credentials": True
+        "supports_credentials": True,
+        "expose_headers": ["Content-Type", "Authorization"]
     }
 })
 
@@ -710,6 +711,35 @@ def upload_avatar():
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
     return send_from_directory('uploads', filename)
+
+@app.route('/api/articles/stats', methods=['GET'])
+@jwt_required()
+def get_article_stats():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        # 获取文章统计信息
+        total_articles = Article.query.filter_by(author_id=user.id).count()
+        published_articles = Article.query.filter_by(author_id=user.id, status='published').count()
+        draft_articles = Article.query.filter_by(author_id=user.id, status='draft').count()
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': {
+                'total': total_articles,
+                'published': published_articles,
+                'draft': draft_articles
+            }
+        })
+        
+    except Exception as e:
+        print(f"获取文章统计信息错误: {str(e)}")
+        return jsonify({'message': '获取文章统计信息失败'}), 500
 
 # 初始化数据库
 with app.app_context():

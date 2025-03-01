@@ -248,7 +248,7 @@
             <div class="connect-cards">
               <div class="connect-card" :class="{ 'is-bound': isHeyboxBound }">
                 <div class="connect-icon">
-                  <i class="el-icon-gamepad"></i>
+                  <i class="icon-gamepad"></i>
                 </div>
                 <div class="connect-info">
                   <h4>小黑盒</h4>
@@ -262,11 +262,10 @@
                   @mouseenter="showUnbindText = true"
                   @mouseleave="showUnbindText = false"
                 >
-                  <i :class="isHeyboxBound ? 'el-icon-close' : 'el-icon-link'"></i>
+                  <i :class="isHeyboxBound ? 'icon-close' : 'icon-link'"></i>
                   <span>{{ isHeyboxBound ? (showUnbindText ? '解绑' : '已绑定') : '绑定' }}</span>
                 </button>
               </div>
-              <!-- 预留其他第三方账号绑定卡片位置 -->
             </div>
           </div>
         </div>
@@ -274,76 +273,75 @@
     </div>
   </div>
 
-  <!-- 弹窗组件保持不变 -->
-  <el-dialog v-model="heyboxDialogVisible" title="绑定小黑盒账号" width="500px">
-    <div class="bind-heybox-form">
-      <p class="bind-desc">请输入您的小黑盒个人主页链接，例如：</p>
-      <p class="bind-example">https://www.xiaoheihe.cn/app/user/profile/19453679</p>
-      <p class="bind-example">https://web.xiaoheihe.cn/bbs/user_profile_share?user_id=19453679</p>
-      <el-input
-        v-model="heyboxProfileUrl"
-        placeholder="请输入小黑盒个人主页链接"
-        clearable
-      />
+  <div v-if="!isHeyboxBound" class="bind-dialog" v-show="heyboxDialogVisible">
+    <div class="dialog-content">
+      <h3>绑定小黑盒账号</h3>
+      <p>请输入您的小黑盒个人主页链接：</p>
+      <input 
+        type="text" 
+        v-model="heyboxProfileUrl" 
+        placeholder="例如：https://xiaoheihe.cn/user/profile/12345678"
+        class="input-field"
+      >
+      <div class="dialog-footer">
+        <button class="btn-cancel" @click="heyboxDialogVisible = false">取消</button>
+        <button class="btn-confirm" @click="handleBindHeybox">确认</button>
+      </div>
     </div>
-    <template #footer>
-      <span class="dialog-footer">
-        <el-button @click="heyboxDialogVisible = false">取消</el-button>
-        <el-button
-          type="primary"
-          @click="handleBindHeybox"
-          :loading="isBinding"
-        >
-          绑定
-        </el-button>
-      </span>
-    </template>
-  </el-dialog>
+  </div>
 
-  <el-dialog v-model="editProfileDialogVisible" title="编辑个人资料" width="500px">
-    <div class="edit-profile-form">
-      <el-form :model="editProfileForm" label-width="80px">
-        <el-form-item label="昵称">
-          <el-input v-model="editProfileForm.nickname" placeholder="请输入新的昵称" />
-        </el-form-item>
-      </el-form>
-    </div>
-    <template #footer>
-      <span class="dialog-footer">
-        <el-button @click="editProfileDialogVisible = false">取消</el-button>
-        <el-button
-          type="primary"
-          @click="handleUpdateProfile"
-          :loading="isUpdating"
+  <div v-if="editProfileDialogVisible" class="bind-dialog">
+    <div class="dialog-content">
+      <h3>编辑个人资料</h3>
+      <div class="form-group">
+        <label>昵称</label>
+        <input 
+          type="text" 
+          v-model="editingNickname" 
+          placeholder="请输入昵称"
+          class="input-field"
         >
-          保存
-        </el-button>
-      </span>
-    </template>
-  </el-dialog>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn-cancel" @click="editProfileDialogVisible = false">取消</button>
+        <button class="btn-confirm" @click="handleUpdateProfile">确认</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 添加头像上传对话框 -->
-  <el-dialog v-model="avatarDialogVisible" title="更换头像" width="400px">
-    <div class="avatar-upload">
-      <el-upload
-        class="avatar-uploader"
-        :action="uploadUrl"
-        :headers="uploadHeaders"
-        :show-file-list="false"
-        :before-upload="beforeAvatarUpload"
-        :on-success="handleAvatarSuccess"
-        :on-error="handleAvatarError"
-        :with-credentials="true"
-      >
-        <img v-if="tempAvatarUrl" :src="tempAvatarUrl" class="avatar-preview">
-        <div v-else class="upload-placeholder">
-          <i class="el-icon-plus"></i>
-          <p>点击上传头像</p>
-          <p class="upload-tip">支持 jpg、png 格式，文件大小不超过 2MB</p>
+  <div v-if="avatarDialogVisible" class="bind-dialog">
+    <div class="dialog-content">
+      <h3>更换头像</h3>
+      <div class="avatar-upload">
+        <input 
+          type="file" 
+          ref="avatarInput"
+          @change="handleAvatarChange" 
+          accept="image/jpeg,image/png"
+          class="file-input"
+        >
+        <div class="upload-preview" v-if="avatarPreview">
+          <img :src="avatarPreview" alt="Avatar preview" class="preview-image">
         </div>
-      </el-upload>
+        <button class="btn-upload" @click="triggerFileInput">
+          <i class="icon-upload"></i>
+          <span>点击上传</span>
+        </button>
+        <p class="upload-tip">支持 jpg、png 格式的图片</p>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn-cancel" @click="closeAvatarDialog">取消</button>
+        <button 
+          class="btn-confirm" 
+          @click="handleAvatarUpload"
+          :disabled="!avatarFile"
+        >
+          确认上传
+        </button>
+      </div>
     </div>
-  </el-dialog>
+  </div>
 </template>
 
 <script setup>
@@ -365,9 +363,7 @@ const heyboxDialogVisible = ref(false)
 const heyboxProfileUrl = ref('')
 const isBinding = ref(false)
 const editProfileDialogVisible = ref(false)
-const editProfileForm = ref({
-  nickname: ''
-})
+const editingNickname = ref('')
 const isUpdating = ref(false)
 const heyboxId = ref('')
 const isHeyboxBound = ref(false)
@@ -640,13 +636,6 @@ onMounted(() => {
   })
 })
 
-// 打开编辑资料对话框时，初始化表单数据
-watch(editProfileDialogVisible, (newVal) => {
-  if (newVal) {
-    editProfileForm.value.nickname = nickname.value
-  }
-})
-
 // 更新用户资料
 const handleUpdateProfile = async () => {
   try {
@@ -654,7 +643,7 @@ const handleUpdateProfile = async () => {
     const token = localStorage.getItem('token')
     const response = await axios.put(
       'http://localhost:5000/api/user/profile',
-      editProfileForm.value,
+      { nickname: editingNickname.value },
       { headers: { 'Authorization': `Bearer ${token}` } }
     )
     
@@ -745,65 +734,57 @@ document.documentElement.style.setProperty('--secondary-rgb', '16, 185, 129')
 
 // 头像上传相关
 const avatarDialogVisible = ref(false)
-const tempAvatarUrl = ref('')
-const uploadUrl = 'http://localhost:5000/api/user/avatar'
-const uploadHeaders = computed(() => ({
-  'Authorization': `Bearer ${localStorage.getItem('token')}`,
-  'X-Requested-With': 'XMLHttpRequest'
-}))
+const avatarInput = ref(null)
+const avatarFile = ref(null)
+const avatarPreview = ref('')
 
-// 上传前验证
-const beforeAvatarUpload = (file) => {
-  const isJPGOrPNG = file.type === 'image/jpeg' || file.type === 'image/png'
-  const isLt2M = file.size / 1024 / 1024 < 2
+const triggerFileInput = () => {
+  avatarInput.value.click()
+}
 
-  if (!isJPGOrPNG) {
-    ElMessage.error('头像只能是 JPG 或 PNG 格式!')
-    return false
+const handleAvatarChange = (e) => {
+  const file = e.target.files[0]
+  if (file) {
+    avatarFile.value = file
+    avatarPreview.value = URL.createObjectURL(file)
   }
-  if (!isLt2M) {
-    ElMessage.error('头像大小不能超过 2MB!')
-    return false
-  }
+}
+
+const closeAvatarDialog = () => {
+  avatarDialogVisible.value = false
+  avatarFile.value = null
+  avatarPreview.value = ''
+}
+
+const handleAvatarUpload = async () => {
+  if (!avatarFile.value) return
   
-  // 预览图片
-  tempAvatarUrl.value = URL.createObjectURL(file)
-  return true
-}
-
-// 上传成功
-const handleAvatarSuccess = (response) => {
-  if (response.code === 200) {
-    avatarUrl.value = response.data.avatar_url
-    ElMessage.success('头像更新成功')
-    avatarDialogVisible.value = false
-    
-    // 刷新用户信息
+  const formData = new FormData()
+  formData.append('file', avatarFile.value)
+  
+  try {
     const token = localStorage.getItem('token')
-    axios.get('http://localhost:5000/api/user/profile', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(response => {
-      if (response.data.code === 200) {
-        const userData = response.data.data
-        avatarUrl.value = userData.avatar
-        nickname.value = userData.nickname || userData.username
+    const response = await axios.post(
+      'http://localhost:5000/api/user/avatar',
+      formData,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
       }
-    })
-    .catch(error => {
-      console.error('获取用户信息失败:', error)
-    })
-  } else {
-    ElMessage.error(response.message || '上传失败')
+    )
+    
+    if (response.data.code === 200) {
+      ElMessage.success('头像上传成功')
+      closeAvatarDialog()
+      // 刷新用户信息
+      await fetchUserProfile()
+    }
+  } catch (error) {
+    console.error('上传头像失败:', error)
+    ElMessage.error('上传头像失败')
   }
-}
-
-// 上传失败
-const handleAvatarError = () => {
-  ElMessage.error('上传失败，请重试')
-  // 清除临时预览
-  URL.revokeObjectURL(tempAvatarUrl.value)
-  tempAvatarUrl.value = ''
 }
 </script>
 
@@ -2043,51 +2024,141 @@ const handleAvatarError = () => {
 }
 
 .avatar-upload {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
+  text-align: center;
+  padding: 20px 0;
 }
 
-.avatar-uploader {
-  width: 200px;
-  height: 200px;
-  border: 2px dashed var(--border-color);
-  border-radius: 16px;
-  overflow: hidden;
+.file-input {
+  display: none;
+}
+
+.btn-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px dashed #d9d9d9;
+  border-radius: 4px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.3s;
+  background: transparent;
+  color: #606266;
 }
 
-.avatar-uploader:hover {
-  border-color: var(--primary);
-  background: rgba(var(--primary-rgb), 0.05);
-}
-
-.upload-placeholder {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-}
-
-.upload-placeholder i {
-  font-size: 32px;
-  margin-bottom: 12px;
-  color: var(--primary);
+.btn-upload:hover {
+  border-color: #409eff;
+  color: #409eff;
 }
 
 .upload-tip {
   font-size: 12px;
+  color: #909399;
   margin-top: 8px;
-  color: var(--text-secondary);
 }
 
-.avatar-preview {
+.upload-preview {
+  margin: 16px 0;
+}
+
+.preview-image {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 4px;
+}
+
+.icon-upload::before {
+  content: "📤";
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bind-dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  background: white;
+  padding: 24px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 400px;
+}
+
+.input-field {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.btn-cancel, .btn-confirm {
+  padding: 8px 20px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+
+.btn-cancel {
+  background: #f4f4f5;
+  color: #606266;
+}
+
+.btn-confirm {
+  background: #409eff;
+  color: white;
+}
+
+.btn-cancel:hover {
+  background: #e9e9eb;
+}
+
+.btn-confirm:hover {
+  background: #66b1ff;
+}
+
+.icon-gamepad::before {
+  content: "🎮";
+}
+
+.icon-close::before {
+  content: "✖";
+}
+
+.icon-link::before {
+  content: "🔗";
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #606266;
 }
 </style> 
