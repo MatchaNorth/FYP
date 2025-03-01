@@ -1,8 +1,8 @@
 from flask import request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
-from app.routes import api_bp
-from app.models.user import User
-from app.models import db
+from core.models.user import User
+from app import db
+from core.routes import api_bp
 
 @api_bp.route('/auth/register', methods=['POST'])
 def register():
