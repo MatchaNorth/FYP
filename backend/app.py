@@ -760,13 +760,26 @@ def get_article_stats():
         published_articles = Article.query.filter_by(author_id=user.id, status='published').count()
         draft_articles = Article.query.filter_by(author_id=user.id, status='draft').count()
         
+        # 获取总阅读量
+        articles = Article.query.filter_by(author_id=user.id).all()
+        total_views = sum(article.views or 0 for article in articles)
+        
+        # 获取今日阅读量
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_views = ArticleView.query.join(Article).filter(
+            Article.author_id == user.id,
+            ArticleView.created_at >= today_start
+        ).count()
+        
         return jsonify({
             'code': 200,
             'message': '获取成功',
             'data': {
                 'total': total_articles,
                 'published': published_articles,
-                'draft': draft_articles
+                'draft': draft_articles,
+                'views': total_views,
+                'todayViews': today_views
             }
         })
         

@@ -380,7 +380,10 @@ const currentView = ref('overview')
 const viewTransition = ref(false)
 const articleStats = ref({
   total: 0,
-  views: 0
+  published: 0,
+  draft: 0,
+  views: 0,
+  todayViews: 0
 })
 
 const viewTitles = {
@@ -585,8 +588,26 @@ const handleUnbindHeybox = async () => {
   }
 }
 
+// 获取文章统计信息
+const fetchArticleStats = async () => {
+  try {
+    const token = localStorage.getItem('token')
+    const response = await axios.get('http://localhost:5000/api/articles/stats', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (response.data.code === 200) {
+      articleStats.value = response.data.data
+      // 触发数值动画
+      animateNumber(articleStats.value, 'total')
+      animateNumber(articleStats.value, 'views')
+    }
+  } catch (error) {
+    console.error('获取文章统计信息失败:', error)
+  }
+}
+
 // 检查登录状态
-onMounted(() => {
+onMounted(async () => {
   const token = localStorage.getItem('token')
   if (!token) {
     router.push('/login')
@@ -594,16 +615,16 @@ onMounted(() => {
   }
   
   // 获取用户详细信息
-  axios.get('http://localhost:5000/api/user/profile', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  })
-  .then(response => {
+  try {
+    const response = await axios.get('http://localhost:5000/api/user/profile', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
     const userData = response.data.data
     username.value = userData.username
     nickname.value = userData.nickname || userData.username
     // 设置头像和小黑盒信息
-    if (userData.heybox_avatar) {
-      avatarUrl.value = userData.heybox_avatar
+    if (userData.avatar) {
+      avatarUrl.value = userData.avatar
     }
     if (userData.heybox_id) {
       heyboxId.value = userData.heybox_id
@@ -627,16 +648,18 @@ onMounted(() => {
       })
     }
     
-    // 获取用户活动记录
-    fetchUserActivities()
-  })
-  .catch(error => {
+    // 获取用户活动记录和文章统计
+    await Promise.all([
+      fetchUserActivities(),
+      fetchArticleStats()
+    ])
+  } catch (error) {
     console.error('获取用户信息失败:', error)
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       router.push('/login')
     }
-  })
+  }
 })
 
 // 更新用户资料
@@ -711,24 +734,6 @@ const switchView = (view) => {
     viewTransition.value = false
   }, 300)
 }
-
-// 在 onMounted 中添加获取文章统计信息
-onMounted(async () => {
-  // ... 原有的 onMounted 逻辑 ...
-  
-  // 获取文章统计信息
-  try {
-    const token = localStorage.getItem('token')
-    const response = await axios.get('http://localhost:5000/api/articles/stats', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    if (response.data.code === 200) {
-      articleStats.value = response.data.data
-    }
-  } catch (error) {
-    console.error('获取文章统计信息失败:', error)
-  }
-})
 
 // 添加 RGB 变量用于渐变效果
 document.documentElement.style.setProperty('--primary-rgb', '79, 70, 229')
