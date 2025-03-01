@@ -67,7 +67,10 @@
           <p>{{ new Date().toLocaleDateString('zh-CN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</p>
         </div>
         <div class="header-actions">
-          <!-- 移除小黑盒绑定按钮 -->
+          <button class="back-home-btn" @click="router.push('/')">
+            <i class="el-icon-back"></i>
+            <span>返回首页</span>
+          </button>
         </div>
       </div>
 
@@ -2160,5 +2163,30 @@ button:disabled {
   margin-bottom: 8px;
   font-size: 14px;
   color: #606266;
+}
+
+.back-home-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  border: none;
+  color: white;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.2);
+}
+
+.back-home-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(var(--primary-rgb), 0.3);
+}
+
+.back-home-btn i {
+  font-size: 16px;
 }
 </style> 

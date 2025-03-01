@@ -165,6 +165,7 @@ class Article(db.Model):
             'summary': self.summary,
             'status': self.status,
             'author': self.author.username,
+            'author_nickname': self.author.nickname or self.author.username,
             'author_avatar': self.author.avatar,
             'views': self.views,
             'likes': self.likes,

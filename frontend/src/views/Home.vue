@@ -49,7 +49,7 @@
                   <div class="meta-item author">
                     <img v-if="article.author_avatar" :src="article.author_avatar" class="author-avatar" alt="作者头像">
                     <span v-else class="author-placeholder">{{ article.author.slice(0, 2) }}</span>
-                    <span>{{ article.author }}</span>
+                    <span>{{ article.author_nickname || article.author }}</span>
                   </div>
                 </div>
                 <div class="meta-right">
