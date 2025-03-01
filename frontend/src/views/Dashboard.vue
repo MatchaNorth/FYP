@@ -171,9 +171,15 @@
         <div v-else-if="currentView === 'profile'" class="profile-view" :class="{ 'fade-enter': viewTransition }">
           <div class="profile-card">
             <div class="profile-header">
-              <el-avatar :size="100" :src="avatarUrl">
-                {{ nickname?.charAt(0)?.toUpperCase() }}
-              </el-avatar>
+              <div class="avatar-container">
+                <el-avatar :size="100" :src="avatarUrl">
+                  {{ nickname?.charAt(0)?.toUpperCase() }}
+                </el-avatar>
+                <button class="change-avatar-btn" @click="avatarDialogVisible = true">
+                  <i class="el-icon-camera"></i>
+                  <span>更换头像</span>
+                </button>
+              </div>
               <div class="profile-info">
                 <h2>{{ nickname }}</h2>
                 <p>{{ username }}</p>
@@ -315,10 +321,33 @@
       </span>
     </template>
   </el-dialog>
+
+  <!-- 添加头像上传对话框 -->
+  <el-dialog v-model="avatarDialogVisible" title="更换头像" width="400px">
+    <div class="avatar-upload">
+      <el-upload
+        class="avatar-uploader"
+        :action="uploadUrl"
+        :headers="uploadHeaders"
+        :show-file-list="false"
+        :before-upload="beforeAvatarUpload"
+        :on-success="handleAvatarSuccess"
+        :on-error="handleAvatarError"
+        :with-credentials="true"
+      >
+        <img v-if="tempAvatarUrl" :src="tempAvatarUrl" class="avatar-preview">
+        <div v-else class="upload-placeholder">
+          <i class="el-icon-plus"></i>
+          <p>点击上传头像</p>
+          <p class="upload-tip">支持 jpg、png 格式，文件大小不超过 2MB</p>
+        </div>
+      </el-upload>
+    </div>
+  </el-dialog>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
@@ -713,6 +742,69 @@ onMounted(async () => {
 document.documentElement.style.setProperty('--primary-rgb', '79, 70, 229')
 document.documentElement.style.setProperty('--primary-light-rgb', '129, 140, 248')
 document.documentElement.style.setProperty('--secondary-rgb', '16, 185, 129')
+
+// 头像上传相关
+const avatarDialogVisible = ref(false)
+const tempAvatarUrl = ref('')
+const uploadUrl = 'http://localhost:5000/api/user/avatar'
+const uploadHeaders = computed(() => ({
+  'Authorization': `Bearer ${localStorage.getItem('token')}`,
+  'X-Requested-With': 'XMLHttpRequest'
+}))
+
+// 上传前验证
+const beforeAvatarUpload = (file) => {
+  const isJPGOrPNG = file.type === 'image/jpeg' || file.type === 'image/png'
+  const isLt2M = file.size / 1024 / 1024 < 2
+
+  if (!isJPGOrPNG) {
+    ElMessage.error('头像只能是 JPG 或 PNG 格式!')
+    return false
+  }
+  if (!isLt2M) {
+    ElMessage.error('头像大小不能超过 2MB!')
+    return false
+  }
+  
+  // 预览图片
+  tempAvatarUrl.value = URL.createObjectURL(file)
+  return true
+}
+
+// 上传成功
+const handleAvatarSuccess = (response) => {
+  if (response.code === 200) {
+    avatarUrl.value = response.data.avatar_url
+    ElMessage.success('头像更新成功')
+    avatarDialogVisible.value = false
+    
+    // 刷新用户信息
+    const token = localStorage.getItem('token')
+    axios.get('http://localhost:5000/api/user/profile', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(response => {
+      if (response.data.code === 200) {
+        const userData = response.data.data
+        avatarUrl.value = userData.avatar
+        nickname.value = userData.nickname || userData.username
+      }
+    })
+    .catch(error => {
+      console.error('获取用户信息失败:', error)
+    })
+  } else {
+    ElMessage.error(response.message || '上传失败')
+  }
+}
+
+// 上传失败
+const handleAvatarError = () => {
+  ElMessage.error('上传失败，请重试')
+  // 清除临时预览
+  URL.revokeObjectURL(tempAvatarUrl.value)
+  tempAvatarUrl.value = ''
+}
 </script>
 
 <style>
@@ -1315,13 +1407,17 @@ document.documentElement.style.setProperty('--secondary-rgb', '16, 185, 129')
   position: relative;
 }
 
-.profile-header .el-avatar {
+.avatar-container {
+  position: relative;
+}
+
+.avatar-container .el-avatar {
   border: 4px solid rgba(var(--primary-rgb), 0.1);
   box-shadow: 0 8px 16px rgba(var(--primary-rgb), 0.15);
   transition: all 0.3s ease;
 }
 
-.profile-header .el-avatar:hover {
+.avatar-container .el-avatar:hover {
   transform: scale(1.05) rotate(5deg);
 }
 
@@ -1914,5 +2010,84 @@ document.documentElement.style.setProperty('--secondary-rgb', '16, 185, 129')
   .connect-btn span {
     font-size: 12px;
   }
+}
+
+/* 头像上传相关样式 */
+.change-avatar-btn {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
+}
+
+.avatar-container:hover .change-avatar-btn {
+  opacity: 1;
+  bottom: -5px;
+}
+
+.change-avatar-btn:hover {
+  transform: translateX(-50%) scale(1.05);
+}
+
+.avatar-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.avatar-uploader {
+  width: 200px;
+  height: 200px;
+  border: 2px dashed var(--border-color);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.avatar-uploader:hover {
+  border-color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.05);
+}
+
+.upload-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.upload-placeholder i {
+  font-size: 32px;
+  margin-bottom: 12px;
+  color: var(--primary);
+}
+
+.upload-tip {
+  font-size: 12px;
+  margin-top: 8px;
+  color: var(--text-secondary);
+}
+
+.avatar-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 </style> 

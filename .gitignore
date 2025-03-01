@@ -83,3 +83,4 @@ instance/
 .env.*.local
 
 MySQL/
+backend/uploads/avatars/North_20250301_162328.png

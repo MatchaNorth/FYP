@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -10,29 +10,21 @@ from urllib.parse import urlparse, parse_qs
 import pytz
 import requests
 from bs4 import BeautifulSoup
+import os
+from werkzeug.utils import secure_filename
 
 # 创建Flask应用
 app = Flask(__name__)
 
-# 配置CORS，允许所有跨域请求
-CORS(app, supports_credentials=True, resources={
+# 配置CORS
+CORS(app, resources={
     r"/*": {
         "origins": ["http://localhost:5173"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
-        "expose_headers": ["Content-Type", "Authorization"],
-        "max_age": 600
+        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+        "supports_credentials": True
     }
 })
-
-# 添加CORS处理
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
 
 # 设置中国时区
 CN_TIMEZONE = pytz.timezone('Asia/Shanghai')
@@ -45,13 +37,21 @@ app.config.update(
     JWT_SECRET_KEY='fyp_2024_secure_jwt_key_!@#$%^&*()',
     JWT_ACCESS_TOKEN_EXPIRES=timedelta(days=1),
     SQLALCHEMY_DATABASE_URI='mysql+pymysql://root:5kuo4678K@localhost/fyp_db',
-    SQLALCHEMY_TRACK_MODIFICATIONS=False
+    SQLALCHEMY_TRACK_MODIFICATIONS=False,
+    UPLOAD_FOLDER='uploads/avatars'
 )
 
 # 初始化扩展
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 migrate = Migrate(app, db)
+
+# 确保上传目录存在
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg'}
 
 # 用户活动模型
 class UserActivity(db.Model):
@@ -87,6 +87,7 @@ class User(db.Model):
     heybox_avatar = db.Column(db.String(255))  # 小黑盒头像URL
     heybox_profile = db.Column(db.String(255))  # 小黑盒个人主页URL
     articles = db.relationship('Article', backref='author', lazy=True)
+    avatar = db.Column(db.String(255))  # 用户头像URL
 
     def __init__(self, username, password, nickname=None):
         self.username = username
@@ -104,7 +105,8 @@ class User(db.Model):
             'heybox_id': self.heybox_id,
             'heybox_nickname': self.heybox_nickname,
             'heybox_avatar': self.heybox_avatar,
-            'heybox_profile': self.heybox_profile
+            'heybox_profile': self.heybox_profile,
+            'avatar': self.avatar
         }
 
 # 文章模型
@@ -651,6 +653,63 @@ def delete_article(article_id):
     except Exception as e:
         print(f"删除文章错误: {str(e)}")
         return jsonify({'message': '删除文章失败'}), 500
+
+@app.route('/api/user/avatar', methods=['POST'])
+@jwt_required()
+def upload_avatar():
+    if 'file' not in request.files:
+        return jsonify({'code': 400, 'message': '没有文件'}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'code': 400, 'message': '没有选择文件'}), 400
+        
+    if file and allowed_file(file.filename):
+        # 生成安全的文件名
+        filename = secure_filename(file.filename)
+        # 添加时间戳避免文件名重复
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        ext = filename.rsplit('.', 1)[1].lower()
+        new_filename = f"{get_jwt_identity()}_{timestamp}.{ext}"
+        
+        # 保存文件
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
+        file.save(file_path)
+        
+        # 生成访问URL（修改为完整的URL）
+        avatar_url = f"http://localhost:5000/uploads/avatars/{new_filename}"
+        
+        # 更新数据库
+        try:
+            user = User.query.filter_by(username=get_jwt_identity()).first()
+            if user:
+                # 删除旧头像
+                if user.avatar and os.path.exists(os.path.join(os.getcwd(), 'uploads/avatars', os.path.basename(user.avatar))):
+                    os.remove(os.path.join(os.getcwd(), 'uploads/avatars', os.path.basename(user.avatar)))
+                
+                user.avatar = avatar_url
+                db.session.commit()
+                
+                return jsonify({
+                    'code': 200,
+                    'message': '上传成功',
+                    'data': {
+                        'avatar_url': avatar_url
+                    }
+                })
+        except Exception as e:
+            db.session.rollback()
+            # 删除已上传的文件
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            return jsonify({'code': 500, 'message': '服务器错误'}), 500
+            
+    return jsonify({'code': 400, 'message': '不支持的文件格式'}), 400
+
+# 添加静态文件路由
+@app.route('/uploads/<path:filename>')
+def uploaded_file(filename):
+    return send_from_directory('uploads', filename)
 
 # 初始化数据库
 with app.app_context():
