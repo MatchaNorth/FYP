@@ -107,7 +107,8 @@ const formatDate = (dateString) => {
 
 // 筛选文章
 const filteredArticles = computed(() => {
-  let result = articles.value
+  // 首先过滤出已发布的文章
+  let result = articles.value.filter(article => article.status === 'published')
 
   // 搜索过滤
   if (searchQuery.value) {
