@@ -1,0 +1,94 @@
+import MarkdownIt from 'markdown-it'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/sunburst.css'
+import markdownItKatex from 'markdown-it-katex'
+import 'katex/dist/katex.min.css'
+import markdownItTaskLists from 'markdown-it-task-lists'
+import markdownItMultimdTable from 'markdown-it-multimd-table'
+import markdownItCodeCopy from 'markdown-it-code-copy'
+
+// 创建 markdown-it 实例
+const md = new MarkdownIt({
+  html: true,
+  breaks: true,
+  linkify: true,
+  typographer: true,
+  highlight: function (str, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return '<pre class="hljs"><code>' +
+          hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
+          '</code></pre>'
+      } catch (__) { }
+    }
+    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>'
+  }
+})
+
+// 添加对LaTeX的支持
+md.use(markdownItKatex)
+
+// 添加对任务列表的支持
+md.use(markdownItTaskLists, { enabled: true })
+
+// 添加对表格的支持
+md.use(markdownItMultimdTable)
+
+// 添加代码复制功能
+md.use(markdownItCodeCopy, {
+  buttonText: '复制',
+  successText: '已复制'
+})
+
+// 自定义插件处理图片路径
+md.use((md) => {
+  const defaultRender = md.renderer.rules.image || function (tokens, idx, options, env, self) {
+    return self.renderToken(tokens, idx, options)
+  }
+
+  md.renderer.rules.image = function (tokens, idx, options, env, self) {
+    const token = tokens[idx]
+    const srcIndex = token.attrIndex('src')
+    if (srcIndex >= 0) {
+      const src = token.attrs[srcIndex][1]
+      if (!src.startsWith('http')) {
+        token.attrs[srcIndex][1] = `/src/Posts/Images/${src}`
+      }
+    }
+    return defaultRender(tokens, idx, options, env, self)
+  }
+})
+
+// 自定义插件处理 steam-game 标记
+md.use((md) => {
+  const defaultFence = md.renderer.rules.fence || function (tokens, idx, options, env, self) {
+    return self.renderToken(tokens, idx, options)
+  }
+
+  md.renderer.rules.fence = function (tokens, idx, options, env, self) {
+    const token = tokens[idx]
+    if (token.info.trim() === 'steam-game') {
+      const url = token.content.trim()
+      return `<steam-game-block :gameurl="'${url}'"></steam-game-block>`
+    }
+    return defaultFence(tokens, idx, options, env, self)
+  }
+})
+
+// 自定义插件处理 bangumi 标记
+md.use((md) => {
+  const defaultFence = md.renderer.rules.fence || function (tokens, idx, options, env, self) {
+    return self.renderToken(tokens, idx, options)
+  }
+
+  md.renderer.rules.fence = function (tokens, idx, options, env, self) {
+    const token = tokens[idx]
+    if (token.info.trim() === 'bangumi') {
+      const url = token.content.trim()
+      return `<bangumi-block :bangumiurl="'${url}'"></bangumi-block>`
+    }
+    return defaultFence(tokens, idx, options, env, self)
+  }
+})
+
+export default md 

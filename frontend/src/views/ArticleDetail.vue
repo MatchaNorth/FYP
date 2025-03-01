@@ -23,6 +23,7 @@
         </div>
         <div class="article-body markdown-content" v-html="renderedContent"></div>
       </div>
+      <SteamGameBlock v-if="false" />
 
       <!-- 右侧作者信息和操作 -->
       <div class="article-sidebar">
@@ -77,14 +78,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 import HeadMenu from '../components/HeadMenu.vue'
 import { Calendar, View, Star, EditPen, Delete } from '@element-plus/icons-vue'
-import MarkdownIt from 'markdown-it'
+import SteamGameBlock from '../components/SteamGameBlock.vue'
+import md from '../utils/markdownRenderer'
 
-const md = new MarkdownIt({
-  html: true,
-  breaks: true,
-  linkify: true,
-  typographer: true
-})
+// 定义组件
+const components = {
+  SteamGameBlock
+}
 
 const route = useRoute()
 const router = useRouter()
