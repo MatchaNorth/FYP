@@ -2,11 +2,18 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LoginRegister from '../views/LoginRegister.vue'
 import Dashboard from '../views/Dashboard.vue'
 import ArticleManager from '../views/ArticleManager.vue'
+import Home from '../views/Home.vue'
 
 const routes = [
   {
     path: '/',
-    redirect: '/login'
+    redirect: '/home'
+  },
+  {
+    path: '/home',
+    name: 'Home',
+    component: Home,
+    meta: { requiresAuth: true }
   },
   {
     path: '/login',
