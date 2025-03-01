@@ -3,11 +3,22 @@
     <div class="menu-container">
       <div class="menu-left">
         <router-link to="/" class="logo">
-          <span class="logo-text">博客系统</span>
+          <i class="icon-gamepad"></i>
+          <span class="logo-text">游戏文章</span>
         </router-link>
         <div class="nav-links">
-          <router-link to="/home" class="nav-link">首页</router-link>
-          <router-link to="/articles" class="nav-link">写文章</router-link>
+          <router-link to="/home" class="nav-link">
+            <i class="icon-home"></i>
+            发现
+          </router-link>
+          <router-link to="/articles" class="nav-link">
+            <i class="icon-edit"></i>
+            创作文章
+          </router-link>
+          <router-link to="/dashboard" class="nav-link">
+            <i class="icon-articles"></i>
+            我的文章
+          </router-link>
         </div>
       </div>
       
@@ -111,7 +122,7 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 64px;
-  background: var(--card-bg);
+  background: rgba(var(--card-bg-rgb), 0.8);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 100;
@@ -135,12 +146,22 @@ onUnmounted(() => {
 
 .logo {
   text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo i {
+  font-size: 24px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .logo-text {
   font-size: 20px;
   font-weight: 600;
-  background: linear-gradient(to right, var(--primary), var(--primary-light));
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -154,12 +175,27 @@ onUnmounted(() => {
   color: var(--text-secondary);
   text-decoration: none;
   font-size: 16px;
-  transition: color 0.3s ease;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 12px;
 }
 
-.nav-link:hover,
+.nav-link i {
+  font-size: 18px;
+}
+
+.nav-link:hover {
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.1);
+}
+
 .nav-link.router-link-active {
   color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.15);
+  font-weight: 500;
 }
 
 .menu-right {
@@ -184,6 +220,7 @@ onUnmounted(() => {
 
 .auth-btn.login:hover {
   background: rgba(var(--primary-rgb), 0.15);
+  transform: translateY(-2px);
 }
 
 .auth-btn.register {
@@ -204,11 +241,13 @@ onUnmounted(() => {
   padding: 6px 16px;
   border-radius: 12px;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
 }
 
 .user-info:hover {
   background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(var(--primary-rgb), 0.2);
 }
 
 .avatar {
@@ -246,6 +285,18 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   overflow: hidden;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dropdown-item {
@@ -255,7 +306,7 @@ onUnmounted(() => {
   padding: 12px 16px;
   color: var(--text-primary);
   text-decoration: none;
-  transition: background-color 0.3s ease;
+  transition: all 0.3s ease;
   border: none;
   background: none;
   width: 100%;
@@ -266,12 +317,29 @@ onUnmounted(() => {
 
 .dropdown-item:hover {
   background: rgba(255, 255, 255, 0.05);
+  color: var(--primary);
 }
 
 .dropdown-divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.1);
   margin: 4px 0;
+}
+
+.icon-gamepad::before {
+  content: "🎮";
+}
+
+.icon-home::before {
+  content: "🏠";
+}
+
+.icon-edit::before {
+  content: "✏️";
+}
+
+.icon-articles::before {
+  content: "📚";
 }
 
 .icon-dashboard::before {
@@ -289,17 +357,35 @@ onUnmounted(() => {
   }
 }
 
+@media (max-width: 1024px) {
+  .nav-link span {
+    display: none;
+  }
+  
+  .nav-link {
+    padding: 8px;
+  }
+  
+  .nav-links {
+    gap: 16px;
+  }
+}
+
 @media (max-width: 768px) {
   .menu-container {
     padding: 0 20px;
   }
   
-  .nav-links {
+  .logo-text {
     display: none;
   }
   
   .menu-left {
     gap: 24px;
+  }
+  
+  .username {
+    display: none;
   }
 }
 </style> 

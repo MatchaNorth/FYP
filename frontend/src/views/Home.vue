@@ -4,30 +4,66 @@
     <div class="home-container">
       <header class="home-header glass-card">
         <div class="header-content">
-          <h1>我的文章</h1>
-          <p>{{ new Date().toLocaleDateString('zh-CN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</p>
+          <h1>发现游戏文章</h1>
+          <p>探索来自游戏玩家的精彩文章</p>
+        </div>
+        <div class="header-actions">
+          <div class="search-box">
+            <i class="icon-search"></i>
+            <input 
+              type="text" 
+              v-model="searchQuery" 
+              placeholder="搜索文章..." 
+              @input="handleSearch"
+            >
+          </div>
+          <div class="filter-box">
+            <button 
+              v-for="filter in filters" 
+              :key="filter.value"
+              :class="['filter-btn', { active: currentFilter === filter.value }]"
+              @click="currentFilter = filter.value"
+            >
+              {{ filter.label }}
+            </button>
+          </div>
         </div>
       </header>
 
       <main class="articles-container">
         <div class="articles-grid">
-          <article v-for="article in articles" :key="article.id" class="article-card glass-card" @click="viewArticle(article.id)">
+          <article v-for="article in filteredArticles" :key="article.id" class="article-card glass-card" @click="viewArticle(article.id)">
             <div class="article-content">
-              <h2>{{ article.title }}</h2>
-              <p class="article-summary">{{ article.summary }}</p>
-              <div class="article-meta">
-                <div class="meta-item">
-                  <i class="icon-calendar"></i>
-                  <span>{{ formatDate(article.created_at) }}</span>
-                </div>
-                <div class="meta-item">
-                  <i class="icon-user"></i>
-                  <span>{{ article.author }}</span>
+              <div class="article-header">
+                <h2>{{ article.title }}</h2>
+                <div class="article-status" :class="article.status">
+                  {{ article.status === 'published' ? '已发布' : '草稿' }}
                 </div>
               </div>
-            </div>
-            <div class="article-status" :class="article.status">
-              {{ article.status === 'published' ? '已发布' : '草稿' }}
+              <p class="article-summary">{{ article.summary }}</p>
+              <div class="article-meta">
+                <div class="meta-left">
+                  <div class="meta-item">
+                    <i class="icon-calendar"></i>
+                    <span>{{ formatDate(article.created_at) }}</span>
+                  </div>
+                  <div class="meta-item author">
+                    <img v-if="article.author_avatar" :src="article.author_avatar" class="author-avatar" alt="作者头像">
+                    <span v-else class="author-placeholder">{{ article.author.slice(0, 2) }}</span>
+                    <span>{{ article.author }}</span>
+                  </div>
+                </div>
+                <div class="meta-right">
+                  <div class="meta-item">
+                    <i class="icon-views"></i>
+                    <span>{{ article.views || 0 }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <i class="icon-likes"></i>
+                    <span>{{ article.likes || 0 }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </article>
         </div>
@@ -43,7 +79,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
@@ -51,6 +87,15 @@ import HeadMenu from '../components/HeadMenu.vue'
 
 const router = useRouter()
 const articles = ref([])
+const searchQuery = ref('')
+const currentFilter = ref('all')
+
+const filters = [
+  { label: '全部', value: 'all' },
+  { label: '最新发布', value: 'latest' },
+  { label: '最多浏览', value: 'most-viewed' },
+  { label: '最多点赞', value: 'most-liked' }
+]
 
 // 格式化日期
 const formatDate = (dateString) => {
@@ -60,6 +105,40 @@ const formatDate = (dateString) => {
     month: 'long',
     day: 'numeric'
   })
+}
+
+// 筛选文章
+const filteredArticles = computed(() => {
+  let result = articles.value
+
+  // 搜索过滤
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(article => 
+      article.title.toLowerCase().includes(query) ||
+      article.summary.toLowerCase().includes(query)
+    )
+  }
+
+  // 分类过滤
+  switch (currentFilter.value) {
+    case 'latest':
+      result = [...result].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      break
+    case 'most-viewed':
+      result = [...result].sort((a, b) => (b.views || 0) - (a.views || 0))
+      break
+    case 'most-liked':
+      result = [...result].sort((a, b) => (b.likes || 0) - (a.likes || 0))
+      break
+  }
+
+  return result
+})
+
+// 搜索处理（可以添加防抖）
+const handleSearch = () => {
+  // 这里可以添加防抖逻辑
 }
 
 // 获取文章列表
@@ -106,19 +185,23 @@ onMounted(() => {
 }
 
 .home-header {
-  padding: 48px 60px;
-  margin-bottom: 48px;
+  padding: 40px;
+  margin-bottom: 40px;
   border-radius: 32px;
   background: var(--card-bg);
   backdrop-filter: blur(20px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
+.header-content {
+  margin-bottom: 32px;
+}
+
 .header-content h1 {
   font-size: 42px;
   font-weight: 700;
   margin-bottom: 16px;
-  background: linear-gradient(to right, var(--primary), var(--primary-light));
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.5px;
@@ -130,13 +213,78 @@ onMounted(() => {
   opacity: 0.8;
 }
 
+.header-actions {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+
+.search-box {
+  flex: 1;
+  max-width: 480px;
+  position: relative;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 12px 20px 12px 44px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: rgba(var(--primary-rgb), 0.5);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.search-box i {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
+.filter-box {
+  display: flex;
+  gap: 12px;
+}
+
+.filter-btn {
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.filter-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(var(--primary-rgb), 0.3);
+}
+
+.filter-btn.active {
+  background: rgba(var(--primary-rgb), 0.15);
+  border-color: rgba(var(--primary-rgb), 0.5);
+  color: var(--primary);
+}
+
 .articles-container {
   margin-top: 40px;
 }
 
 .articles-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 32px;
 }
 
@@ -150,9 +298,6 @@ onMounted(() => {
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  height: 100%;
-  display: flex;
-  flex-direction: column;
 }
 
 .article-card::before {
@@ -177,22 +322,42 @@ onMounted(() => {
   opacity: 1;
 }
 
-.article-content {
-  flex: 1;
+.article-header {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
-.article-content h2 {
+.article-header h2 {
   font-size: 24px;
   font-weight: 600;
-  margin-bottom: 16px;
   color: var(--text-primary);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   line-height: 1.4;
+  flex: 1;
+}
+
+.article-status {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.article-status.published {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+}
+
+.article-status.draft {
+  background: rgba(var(--primary-rgb), 0.15);
+  color: var(--primary);
 }
 
 .article-summary {
@@ -204,46 +369,51 @@ onMounted(() => {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  flex: 1;
+  min-height: 76px;
 }
 
 .article-meta {
   display: flex;
-  gap: 20px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  margin-top: auto;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.meta-left, .meta-right {
+  display: flex;
+  gap: 16px;
+  align-items: center;
 }
 
 .meta-item {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.meta-item i {
-  font-size: 18px;
-}
-
-.article-status {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  padding: 6px 16px;
-  border-radius: 20px;
+  color: var(--text-secondary);
   font-size: 14px;
+}
+
+.meta-item.author {
+  color: var(--text-primary);
   font-weight: 500;
-  letter-spacing: 0.5px;
 }
 
-.article-status.published {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10B981;
+.author-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
-.article-status.draft {
-  background: rgba(var(--primary-rgb), 0.15);
-  color: var(--primary);
+.author-placeholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  color: white;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .empty-state {
@@ -286,12 +456,24 @@ onMounted(() => {
   box-shadow: 0 8px 24px rgba(var(--primary-rgb), 0.4);
 }
 
+.icon-search::before {
+  content: "🔍";
+}
+
 .icon-calendar::before {
   content: "📅";
 }
 
 .icon-user::before {
   content: "👤";
+}
+
+.icon-views::before {
+  content: "👁️";
+}
+
+.icon-likes::before {
+  content: "❤️";
 }
 
 .icon-article::before {
@@ -305,8 +487,17 @@ onMounted(() => {
   }
   
   .articles-grid {
-    grid-template-columns: repeat(2, 1fr);
     gap: 24px;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  
+  .search-box {
+    max-width: none;
   }
 }
 
@@ -344,8 +535,21 @@ onMounted(() => {
     font-size: 28px;
   }
   
+  .filter-box {
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+  
+  .filter-btn {
+    white-space: nowrap;
+  }
+  
   .article-card {
     padding: 24px;
+  }
+  
+  .meta-left, .meta-right {
+    gap: 12px;
   }
 }
 </style> 

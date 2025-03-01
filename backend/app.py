@@ -123,6 +123,8 @@ class Article(db.Model):
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    views = db.Column(db.Integer, default=0)  # 文章浏览量
+    likes = db.Column(db.Integer, default=0)  # 文章点赞数
     
     def to_dict(self):
         return {
@@ -133,6 +135,9 @@ class Article(db.Model):
             'summary': self.summary,
             'status': self.status,
             'author': self.author.username,
+            'author_avatar': self.author.avatar,  # 添加作者头像
+            'views': self.views,
+            'likes': self.likes,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }
@@ -740,6 +745,79 @@ def get_article_stats():
     except Exception as e:
         print(f"获取文章统计信息错误: {str(e)}")
         return jsonify({'message': '获取文章统计信息失败'}), 500
+
+@app.route('/api/articles/public', methods=['GET'])
+def get_public_articles():
+    try:
+        # 获取所有已发布的文章
+        articles = Article.query.filter_by(status='published')\
+            .order_by(Article.created_at.desc())\
+            .all()
+            
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': [article.to_dict() for article in articles]
+        })
+        
+    except Exception as e:
+        print(f"获取公开文章列表错误: {str(e)}")
+        return jsonify({'message': '获取文章列表失败'}), 500
+
+@app.route('/api/articles/<int:article_id>/view', methods=['POST'])
+def increment_article_views(article_id):
+    try:
+        article = Article.query.get(article_id)
+        
+        if not article:
+            return jsonify({'message': '文章不存在'}), 404
+            
+        article.views += 1
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '浏览量更新成功',
+            'data': {
+                'views': article.views
+            }
+        })
+        
+    except Exception as e:
+        print(f"更新文章浏览量错误: {str(e)}")
+        return jsonify({'message': '更新浏览量失败'}), 500
+
+@app.route('/api/articles/<int:article_id>/like', methods=['POST'])
+@jwt_required()
+def toggle_article_like(article_id):
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        article = Article.query.get(article_id)
+        
+        if not article:
+            return jsonify({'message': '文章不存在'}), 404
+            
+        # 这里可以添加用户点赞记录表来防止重复点赞
+        # 现在先简单实现
+        article.likes += 1
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '点赞成功',
+            'data': {
+                'likes': article.likes
+            }
+        })
+        
+    except Exception as e:
+        print(f"文章点赞错误: {str(e)}")
+        return jsonify({'message': '点赞失败'}), 500
 
 # 初始化数据库
 with app.app_context():
