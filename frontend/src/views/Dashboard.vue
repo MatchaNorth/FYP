@@ -615,6 +615,7 @@ onMounted(async () => {
 .dashboard-container {
   display: flex;
   min-height: 100vh;
+  width: 100%;
   background-color: #f0f2f5;
 }
 

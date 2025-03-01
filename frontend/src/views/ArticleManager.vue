@@ -111,12 +111,52 @@
       
       <div class="editor-container">
         <div class="markdown-editor">
+          <div class="editor-toolbar">
+            <el-button-group>
+              <el-button size="small" @click="insertMarkdown('bold')" title="粗体 (Ctrl+B)">
+                <i class="el-icon-bold">B</i>
+              </el-button>
+              <el-button size="small" @click="insertMarkdown('italic')" title="斜体 (Ctrl+I)">
+                <i class="el-icon-italic">I</i>
+              </el-button>
+              <el-button size="small" @click="insertMarkdown('header')" title="标题">
+                <i class="el-icon-header">H</i>
+              </el-button>
+            </el-button-group>
+            <el-divider direction="vertical" />
+            <el-button-group>
+              <el-button size="small" @click="insertMarkdown('link')" title="链接 (Ctrl+K)">
+                <i class="el-icon-link"></i>
+              </el-button>
+              <el-button size="small" @click="insertMarkdown('image')" title="图片">
+                <i class="el-icon-picture"></i>
+              </el-button>
+            </el-button-group>
+            <el-divider direction="vertical" />
+            <el-button-group>
+              <el-button size="small" @click="insertMarkdown('quote')" title="引用">
+                <i class="el-icon-quote">『』</i>
+              </el-button>
+              <el-button size="small" @click="insertMarkdown('code')" title="代码">
+                <i class="el-icon-code">{}</i>
+              </el-button>
+              <el-button size="small" @click="insertMarkdown('list')" title="列表">
+                <i class="el-icon-list">•</i>
+              </el-button>
+            </el-button-group>
+          </div>
           <el-input
             v-model="currentArticle.content"
             type="textarea"
             :rows="20"
             placeholder="请输入文章内容（支持Markdown格式）"
             @input="updatePreview"
+            ref="markdownInput"
+            @keydown.ctrl.b.prevent="insertMarkdown('bold')"
+            @keydown.ctrl.i.prevent="insertMarkdown('italic')"
+            @keydown.ctrl.k.prevent="insertMarkdown('link')"
+            @keydown.ctrl.z.prevent="undo"
+            @keydown.ctrl.y.prevent="redo"
           />
         </div>
         <div class="markdown-preview markdown-body" v-html="previewHtml"></div>
@@ -126,7 +166,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { marked } from 'marked'
@@ -143,6 +183,65 @@ const currentArticle = ref({
 const previewHtml = ref('')
 const saving = ref(false)
 const searchQuery = ref('')
+const markdownInput = ref(null)
+
+// 编辑历史管理
+const history = ref({
+  past: [],
+  future: [],
+  ignoreNextChange: false
+})
+
+// 监听内容变化
+watch(() => currentArticle.value.content, (newContent, oldContent) => {
+  if (history.value.ignoreNextChange) {
+    history.value.ignoreNextChange = false
+    return
+  }
+  
+  history.value.past.push(oldContent || '')
+  history.value.future = []
+  
+  // 限制历史记录数量，避免内存占用过大
+  if (history.value.past.length > 50) {
+    history.value.past.shift()
+  }
+}, { deep: true })
+
+// 撤销操作
+const undo = () => {
+  if (history.value.past.length === 0) return
+  
+  const currentContent = currentArticle.value.content
+  const previousContent = history.value.past.pop()
+  
+  history.value.future.push(currentContent)
+  history.value.ignoreNextChange = true
+  currentArticle.value.content = previousContent
+  updatePreview()
+}
+
+// 重做操作
+const redo = () => {
+  if (history.value.future.length === 0) return
+  
+  const currentContent = currentArticle.value.content
+  const nextContent = history.value.future.pop()
+  
+  history.value.past.push(currentContent)
+  history.value.ignoreNextChange = true
+  currentArticle.value.content = nextContent
+  updatePreview()
+}
+
+// 重置历史记录
+const resetHistory = () => {
+  history.value = {
+    past: [],
+    future: [],
+    ignoreNextChange: false
+  }
+}
 
 // 获取文章列表
 const fetchArticles = async () => {
@@ -169,6 +268,7 @@ const createNewArticle = () => {
     content: '',
     status: 'draft'
   }
+  resetHistory()
   showEditor.value = true
 }
 
@@ -182,6 +282,7 @@ const editArticle = async (article) => {
     
     if (response.data.code === 200) {
       currentArticle.value = response.data.data
+      resetHistory()
       updatePreview()
       showEditor.value = true
     }
@@ -293,6 +394,66 @@ const filteredArticles = computed(() => {
   )
 })
 
+// 插入 Markdown 语法
+const insertMarkdown = async (type) => {
+  const textarea = markdownInput.value.$el.querySelector('textarea')
+  const { selectionStart, selectionEnd } = textarea
+  const selectedText = currentArticle.value.content.substring(selectionStart, selectionEnd)
+  let insertion = ''
+  let cursorOffset = 0
+
+  switch (type) {
+    case 'bold':
+      insertion = `**${selectedText || '粗体文本'}**`
+      cursorOffset = selectedText ? 0 : -2
+      break
+    case 'italic':
+      insertion = `*${selectedText || '斜体文本'}*`
+      cursorOffset = selectedText ? 0 : -1
+      break
+    case 'header':
+      insertion = `\n## ${selectedText || '标题'}\n`
+      cursorOffset = selectedText ? 0 : -1
+      break
+    case 'link':
+      insertion = `[${selectedText || '链接文本'}](url)`
+      cursorOffset = selectedText ? -1 : -4
+      break
+    case 'image':
+      insertion = `![${selectedText || '图片描述'}](图片链接)`
+      cursorOffset = selectedText ? -1 : -4
+      break
+    case 'quote':
+      insertion = `\n> ${selectedText || '引用文本'}\n`
+      cursorOffset = selectedText ? 0 : -1
+      break
+    case 'code':
+      insertion = selectedText.includes('\n')
+        ? `\n\`\`\`\n${selectedText || '代码块'}\n\`\`\`\n`
+        : `\`${selectedText || '代码'}\``
+      cursorOffset = selectedText ? 0 : -1
+      break
+    case 'list':
+      insertion = `\n- ${selectedText || '列表项'}\n`
+      cursorOffset = selectedText ? 0 : -1
+      break
+  }
+
+  const newContent = 
+    currentArticle.value.content.substring(0, selectionStart) +
+    insertion +
+    currentArticle.value.content.substring(selectionEnd)
+
+  currentArticle.value.content = newContent
+  
+  await nextTick()
+  textarea.focus()
+  const newPosition = selectionEnd + insertion.length + cursorOffset
+  textarea.setSelectionRange(newPosition, newPosition)
+  
+  updatePreview()
+}
+
 onMounted(() => {
   fetchArticles()
 })
@@ -372,6 +533,7 @@ onMounted(() => {
   font-size: 14px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -578,5 +740,42 @@ onMounted(() => {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.editor-toolbar {
+  padding: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background-color: #ffffff;
+  border-radius: 8px 8px 0 0;
+  position: relative;
+}
+
+.editor-toolbar :deep(.el-button) {
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editor-toolbar :deep(.el-button i) {
+  font-style: normal;
+  font-weight: 600;
+}
+
+.editor-toolbar :deep(.el-divider--vertical) {
+  margin: 0;
+  height: 20px;
+}
+
+.editor-toolbar :deep(.el-button[disabled]) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.markdown-editor :deep(.el-textarea__inner) {
+  border-radius: 0 0 8px 8px;
 }
 </style> 
