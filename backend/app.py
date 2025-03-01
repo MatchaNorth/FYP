@@ -12,6 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 import os
 from werkzeug.utils import secure_filename
+from sqlalchemy.sql import func
 
 # 创建Flask应用
 app = Flask(__name__)
@@ -954,6 +955,78 @@ def get_like_status(article_id):
             'code': 500,
             'message': str(e)
         }), 500
+
+@app.route('/api/articles/analytics', methods=['GET'])
+@jwt_required()
+def get_article_analytics():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        # 获取过去30天的数据
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        
+        # 获取每日阅读量统计
+        daily_views = db.session.query(
+            func.date(ArticleView.created_at).label('date'),
+            func.count(ArticleView.id).label('views')
+        ).join(Article).filter(
+            Article.author_id == user.id,
+            ArticleView.created_at >= thirty_days_ago
+        ).group_by(
+            func.date(ArticleView.created_at)
+        ).all()
+        
+        # 获取每日点赞数统计
+        daily_likes = db.session.query(
+            func.date(ArticleLike.created_at).label('date'),
+            func.count(ArticleLike.id).label('likes')
+        ).join(Article).filter(
+            Article.author_id == user.id,
+            ArticleLike.created_at >= thirty_days_ago
+        ).group_by(
+            func.date(ArticleLike.created_at)
+        ).all()
+        
+        # 获取文章分类统计（按状态分类）
+        article_status = db.session.query(
+            Article.status,
+            func.count(Article.id).label('count')
+        ).filter(
+            Article.author_id == user.id
+        ).group_by(Article.status).all()
+        
+        # 获取最受欢迎的文章（按阅读量排序）
+        popular_articles = Article.query.filter_by(
+            author_id=user.id
+        ).order_by(
+            Article.views.desc()
+        ).limit(5).all()
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': {
+                'daily_views': [{'date': str(dv.date), 'views': dv.views} for dv in daily_views],
+                'daily_likes': [{'date': str(dl.date), 'likes': dl.likes} for dl in daily_likes],
+                'article_status': [{'status': status, 'count': count} for status, count in article_status],
+                'popular_articles': [
+                    {
+                        'title': article.title,
+                        'views': article.views,
+                        'likes': article.likes,
+                        'created_at': article.created_at.strftime('%Y-%m-%d')
+                    } for article in popular_articles
+                ]
+            }
+        })
+        
+    except Exception as e:
+        print(f"获取文章统计分析错误: {str(e)}")
+        return jsonify({'message': '获取统计分析失败'}), 500
 
 # 初始化数据库
 with app.app_context():

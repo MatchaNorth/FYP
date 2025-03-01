@@ -1,110 +1,120 @@
 <template>
   <div class="article-manager">
-    <!-- 文章列表 -->
-    <div class="article-list" v-if="!showEditor">
-      <div class="list-header">
-        <div class="list-tabs">
-          <el-radio-group v-model="currentTab" size="large">
-            <el-radio-button label="published">已发布</el-radio-button>
-            <el-radio-button label="draft">草稿箱</el-radio-button>
-          </el-radio-group>
-        </div>
-        <div class="header-right">
-          <div class="search-bar">
-            <el-input
-              v-model="searchQuery"
-              :placeholder="currentTab === 'published' ? '搜索已发布文章...' : '搜索草稿...'"
-              prefix-icon="el-icon-search"
-              clearable
-            />
-          </div>
-          <el-button type="primary" @click="createNewArticle">
-            <i class="el-icon-plus"></i>
-            写文章
-          </el-button>
-        </div>
-      </div>
-      
-      <div class="list-stats">
-        <span class="stat-item">
-          {{ currentTab === 'published' ? '已发布文章' : '草稿' }}：
-          <span class="stat-value">{{ filteredArticles.length }}</span> 篇
-        </span>
-        <span class="stat-item">
-          总字数：
-          <span class="stat-value">{{ getTotalWordCount(filteredArticles) }}</span> 字
-        </span>
-      </div>
-      
-      <el-empty
-        v-if="filteredArticles.length === 0"
-        :description="currentTab === 'published' ? '暂无已发布的文章' : '暂无草稿'"
-      >
-        <el-button type="primary" @click="createNewArticle">
-          <i class="el-icon-plus"></i>
-          写文章
-        </el-button>
-      </el-empty>
+    <div v-if="!showEditor">
+      <el-tabs v-model="activeTab" class="article-tabs">
+        <el-tab-pane label="文章列表" name="list">
+          <!-- 文章列表 -->
+          <div class="article-list" v-if="!showEditor">
+            <div class="list-header">
+              <div class="list-tabs">
+                <el-radio-group v-model="currentTab" size="large">
+                  <el-radio-button label="published">已发布</el-radio-button>
+                  <el-radio-button label="draft">草稿箱</el-radio-button>
+                </el-radio-group>
+              </div>
+              <div class="header-right">
+                <div class="search-bar">
+                  <el-input
+                    v-model="searchQuery"
+                    :placeholder="currentTab === 'published' ? '搜索已发布文章...' : '搜索草稿...'"
+                    prefix-icon="el-icon-search"
+                    clearable
+                  />
+                </div>
+                <el-button type="primary" @click="createNewArticle">
+                  <i class="el-icon-plus"></i>
+                  写文章
+                </el-button>
+              </div>
+            </div>
+            
+            <div class="list-stats">
+              <span class="stat-item">
+                {{ currentTab === 'published' ? '已发布文章' : '草稿' }}：
+                <span class="stat-value">{{ filteredArticles.length }}</span> 篇
+              </span>
+              <span class="stat-item">
+                总字数：
+                <span class="stat-value">{{ getTotalWordCount(filteredArticles) }}</span> 字
+              </span>
+            </div>
+            
+            <el-empty
+              v-if="filteredArticles.length === 0"
+              :description="currentTab === 'published' ? '暂无已发布的文章' : '暂无草稿'"
+            >
+              <el-button type="primary" @click="createNewArticle">
+                <i class="el-icon-plus"></i>
+                写文章
+              </el-button>
+            </el-empty>
 
-      <el-table 
-        v-else
-        :data="filteredArticles" 
-        style="width: 100%"
-        :header-cell-style="{
-          background: '#ffffff',
-          color: '#0f172a',
-          fontWeight: '600'
-        }"
-      >
-        <el-table-column prop="title" label="标题" min-width="200">
-          <template #default="{ row }">
-            <div class="article-title" @click="editArticle(row)">
-              <span class="title-text">{{ row.title }}</span>
-              <span class="word-count">{{ getWordCount(row.content) }}字</span>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="summary" label="摘要" min-width="300">
-          <template #default="{ row }">
-            <div class="article-summary">{{ row.summary || '暂无摘要' }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'published' ? 'success' : 'info'">
-              {{ row.status === 'published' ? '已发布' : '草稿' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="updated_at" label="更新时间" width="180">
-          <template #default="{ row }">
-            {{ formatDate(row.updated_at) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
-          <template #default="{ row }">
-            <div class="article-actions">
-              <el-button 
-                size="small" 
-                type="text"
-                @click="editArticle(row)"
-              >
-                <i class="el-icon-edit"></i>
-                编辑
-              </el-button>
-              <el-button 
-                size="small" 
-                type="text"
-                class="delete-btn"
-                @click="deleteArticle(row)"
-              >
-                <i class="el-icon-delete"></i>
-                删除
-              </el-button>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
+            <el-table 
+              v-else
+              :data="filteredArticles" 
+              style="width: 100%"
+              :header-cell-style="{
+                background: '#ffffff',
+                color: '#0f172a',
+                fontWeight: '600'
+              }"
+            >
+              <el-table-column prop="title" label="标题" min-width="200">
+                <template #default="{ row }">
+                  <div class="article-title" @click="editArticle(row)">
+                    <span class="title-text">{{ row.title }}</span>
+                    <span class="word-count">{{ getWordCount(row.content) }}字</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="summary" label="摘要" min-width="300">
+                <template #default="{ row }">
+                  <div class="article-summary">{{ row.summary || '暂无摘要' }}</div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="status" label="状态" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="row.status === 'published' ? 'success' : 'info'">
+                    {{ row.status === 'published' ? '已发布' : '草稿' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="updated_at" label="更新时间" width="180">
+                <template #default="{ row }">
+                  {{ formatDate(row.updated_at) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="150" fixed="right">
+                <template #default="{ row }">
+                  <div class="article-actions">
+                    <el-button 
+                      size="small" 
+                      type="text"
+                      @click="editArticle(row)"
+                    >
+                      <i class="el-icon-edit"></i>
+                      编辑
+                    </el-button>
+                    <el-button 
+                      size="small" 
+                      type="text"
+                      class="delete-btn"
+                      @click="deleteArticle(row)"
+                    >
+                      <i class="el-icon-delete"></i>
+                      删除
+                    </el-button>
+                  </div>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-tab-pane>
+        
+        <el-tab-pane label="统计分析" name="analytics">
+          <article-analytics />
+        </el-tab-pane>
+      </el-tabs>
     </div>
     
     <!-- Markdown编辑器 -->
@@ -201,6 +211,7 @@ import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import ArticleAnalytics from '../components/ArticleAnalytics.vue'
 
 const articles = ref([])
 const showEditor = ref(false)
@@ -224,6 +235,7 @@ const history = ref({
 
 // 添加当前标签页状态
 const currentTab = ref('published')
+const activeTab = ref('list')
 
 // 监听内容变化
 watch(() => currentArticle.value.content, (newContent, oldContent) => {
@@ -507,6 +519,36 @@ onMounted(() => {
 .article-manager {
   height: 100%;
   animation: fadeIn 0.3s ease-out;
+}
+
+.article-tabs {
+  background: var(--card-bg);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* 添加标签页切换动画 */
+:deep(.el-tabs__content) {
+  overflow: hidden;
+  position: relative;
+}
+
+:deep(.el-tab-pane) {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+:deep(.el-tabs__item) {
+  transition: all 0.3s ease;
+}
+
+:deep(.el-tabs__item:hover) {
+  transform: translateY(-2px);
+}
+
+:deep(.el-tabs__item.is-active) {
+  font-weight: 600;
+  transform: translateY(-2px);
 }
 
 .article-list {
