@@ -1,41 +1,44 @@
 <template>
-  <div class="home-container">
-    <header class="home-header glass-card">
-      <div class="header-content">
-        <h1>我的文章</h1>
-        <p>{{ new Date().toLocaleDateString('zh-CN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</p>
-      </div>
-    </header>
+  <div>
+    <HeadMenu />
+    <div class="home-container">
+      <header class="home-header glass-card">
+        <div class="header-content">
+          <h1>我的文章</h1>
+          <p>{{ new Date().toLocaleDateString('zh-CN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</p>
+        </div>
+      </header>
 
-    <main class="articles-container">
-      <div class="articles-grid">
-        <article v-for="article in articles" :key="article.id" class="article-card glass-card" @click="viewArticle(article.id)">
-          <div class="article-content">
-            <h2>{{ article.title }}</h2>
-            <p class="article-summary">{{ article.summary }}</p>
-            <div class="article-meta">
-              <div class="meta-item">
-                <i class="icon-calendar"></i>
-                <span>{{ formatDate(article.created_at) }}</span>
-              </div>
-              <div class="meta-item">
-                <i class="icon-user"></i>
-                <span>{{ article.author }}</span>
+      <main class="articles-container">
+        <div class="articles-grid">
+          <article v-for="article in articles" :key="article.id" class="article-card glass-card" @click="viewArticle(article.id)">
+            <div class="article-content">
+              <h2>{{ article.title }}</h2>
+              <p class="article-summary">{{ article.summary }}</p>
+              <div class="article-meta">
+                <div class="meta-item">
+                  <i class="icon-calendar"></i>
+                  <span>{{ formatDate(article.created_at) }}</span>
+                </div>
+                <div class="meta-item">
+                  <i class="icon-user"></i>
+                  <span>{{ article.author }}</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="article-status" :class="article.status">
-            {{ article.status === 'published' ? '已发布' : '草稿' }}
-          </div>
-        </article>
-      </div>
+            <div class="article-status" :class="article.status">
+              {{ article.status === 'published' ? '已发布' : '草稿' }}
+            </div>
+          </article>
+        </div>
 
-      <div v-if="articles.length === 0" class="empty-state">
-        <i class="icon-article"></i>
-        <p>暂无文章</p>
-        <button class="create-btn" @click="createArticle">写文章</button>
-      </div>
-    </main>
+        <div v-if="articles.length === 0" class="empty-state">
+          <i class="icon-article"></i>
+          <p>暂无文章</p>
+          <button class="create-btn" @click="createArticle">写文章</button>
+        </div>
+      </main>
+    </div>
   </div>
 </template>
 
@@ -44,6 +47,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import HeadMenu from '../components/HeadMenu.vue'
 
 const router = useRouter()
 const articles = ref([])
@@ -96,7 +100,7 @@ onMounted(() => {
 .home-container {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 40px 60px;
+  padding: 104px 60px 40px;
   min-height: 100vh;
   background: var(--bg-gradient);
 }
