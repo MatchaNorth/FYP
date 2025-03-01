@@ -3,6 +3,7 @@ import LoginRegister from '../views/LoginRegister.vue'
 import Dashboard from '../views/Dashboard.vue'
 import ArticleManager from '../views/ArticleManager.vue'
 import Home from '../views/Home.vue'
+import ArticleDetail from '../views/ArticleDetail.vue'
 
 const routes = [
   {
@@ -30,6 +31,12 @@ const routes = [
     path: '/articles',
     name: 'articles',
     component: ArticleManager,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/article/:id',
+    name: 'article-detail',
+    component: ArticleDetail,
     meta: { requiresAuth: true }
   }
 ]

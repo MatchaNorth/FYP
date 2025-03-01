@@ -142,35 +142,32 @@ class Article(db.Model):
     __tablename__ = 'articles'
     
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
+    title = db.Column(db.String(100), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    content_html = db.Column(db.Text)  # 存储转换后的HTML
-    summary = db.Column(db.String(500))  # 文章摘要
-    status = db.Column(db.String(20), default='draft')  # draft, published
-    author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    summary = db.Column(db.String(200))
+    status = db.Column(db.String(20), default='draft')  # draft or published
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    views = db.Column(db.Integer, default=0)  # 文章浏览量
-    likes = db.Column(db.Integer, default=0)  # 文章点赞数
-    
-    # 添加点赞关系
-    liked_by = db.relationship('User', secondary='article_likes', backref=db.backref('liked_articles', lazy='dynamic'))
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    views = db.Column(db.Integer, default=0)
+    likes = db.Column(db.Integer, default=0)
     
     def to_dict(self):
+        author = User.query.get(self.author_id)
         return {
             'id': self.id,
             'title': self.title,
             'content': self.content,
-            'content_html': self.content_html,
             'summary': self.summary,
             'status': self.status,
-            'author': self.author.username,
-            'author_nickname': self.author.nickname or self.author.username,
-            'author_avatar': self.author.avatar,
-            'views': self.views,
-            'likes': self.likes,
             'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'updated_at': self.updated_at.isoformat(),
+            'author_id': self.author_id,
+            'author': author.username,
+            'author_nickname': author.nickname,
+            'author_avatar': author.avatar,
+            'views': self.views,
+            'likes': self.likes
         }
 
 # 路由
@@ -534,26 +531,22 @@ def get_articles():
 @jwt_required()
 def get_article(article_id):
     try:
-        current_user = get_jwt_identity()
-        user = User.query.filter_by(username=current_user).first()
+        article = Article.query.get_or_404(article_id)
         
-        if not user:
-            return jsonify({'message': '用户不存在'}), 404
-            
-        article = Article.query.filter_by(id=article_id, author_id=user.id).first()
+        # 增加浏览量
+        article.views = (article.views or 0) + 1
+        db.session.commit()
         
-        if not article:
-            return jsonify({'message': '文章不存在'}), 404
-            
         return jsonify({
             'code': 200,
-            'message': '获取成功',
+            'message': '获取文章详情成功',
             'data': article.to_dict()
         })
-        
     except Exception as e:
-        print(f"获取文章详情错误: {str(e)}")
-        return jsonify({'message': '获取文章详情失败'}), 500
+        return jsonify({
+            'code': 500,
+            'message': str(e)
+        }), 500
 
 @app.route('/api/articles', methods=['POST'])
 @jwt_required()
@@ -668,28 +661,32 @@ def update_article(article_id):
 @jwt_required()
 def delete_article(article_id):
     try:
-        current_user = get_jwt_identity()
-        user = User.query.filter_by(username=current_user).first()
+        current_user_id = get_jwt_identity()
+        article = Article.query.get_or_404(article_id)
         
-        if not user:
-            return jsonify({'message': '用户不存在'}), 404
-            
-        article = Article.query.filter_by(id=article_id, author_id=user.id).first()
+        # 检查是否为作者
+        if article.author_id != current_user_id:
+            return jsonify({
+                'code': 403,
+                'message': '没有权限删除该文章'
+            }), 403
         
-        if not article:
-            return jsonify({'message': '文章不存在'}), 404
-            
+        # 删除相关的点赞记录
+        ArticleLike.query.filter_by(article_id=article_id).delete()
+        
+        # 删除文章
         db.session.delete(article)
         db.session.commit()
         
         return jsonify({
             'code': 200,
-            'message': '删除成功'
+            'message': '删除文章成功'
         })
-        
     except Exception as e:
-        print(f"删除文章错误: {str(e)}")
-        return jsonify({'message': '删除文章失败'}), 500
+        return jsonify({
+            'code': 500,
+            'message': str(e)
+        }), 500
 
 @app.route('/api/user/avatar', methods=['POST'])
 @jwt_required()
@@ -864,14 +861,16 @@ def toggle_article_like(article_id):
         if existing_like:
             # 如果已经点赞，则取消点赞
             db.session.delete(existing_like)
-            article.likes -= 1
+            article.likes = (article.likes or 1) - 1
             message = '取消点赞成功'
+            is_liked = False
         else:
             # 如果未点赞，则添加点赞
             like = ArticleLike(user_id=user.id, article_id=article_id)
             db.session.add(like)
-            article.likes += 1
+            article.likes = (article.likes or 0) + 1
             message = '点赞成功'
+            is_liked = True
             
         db.session.commit()
         
@@ -880,13 +879,68 @@ def toggle_article_like(article_id):
             'message': message,
             'data': {
                 'likes': article.likes,
-                'is_liked': not existing_like
+                'liked': is_liked
             }
         })
         
     except Exception as e:
         print(f"文章点赞错误: {str(e)}")
+        db.session.rollback()
         return jsonify({'message': '操作失败'}), 500
+
+@app.route('/api/users/<int:user_id>/stats', methods=['GET'])
+@jwt_required()
+def get_user_stats(user_id):
+    try:
+        user = User.query.get_or_404(user_id)
+        articles = Article.query.filter_by(author_id=user_id).all()
+        
+        total_views = sum(article.views or 0 for article in articles)
+        total_likes = sum(article.likes or 0 for article in articles)
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取作者统计信息成功',
+            'data': {
+                'articles': len(articles),
+                'total_views': total_views,
+                'total_likes': total_likes
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'code': 500,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/articles/<int:article_id>/like', methods=['GET'])
+@jwt_required()
+def get_like_status(article_id):
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        like = ArticleLike.query.filter_by(
+            user_id=user.id,
+            article_id=article_id
+        ).first()
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取点赞状态成功',
+            'data': {
+                'liked': like is not None
+            }
+        })
+    except Exception as e:
+        print(f"获取点赞状态错误: {str(e)}")
+        return jsonify({
+            'code': 500,
+            'message': str(e)
+        }), 500
 
 # 初始化数据库
 with app.app_context():
