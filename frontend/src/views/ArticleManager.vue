@@ -3,21 +3,51 @@
     <!-- 文章列表 -->
     <div class="article-list" v-if="!showEditor">
       <div class="list-header">
-        <div class="search-bar">
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索文章..."
-            prefix-icon="el-icon-search"
-            clearable
-          />
+        <div class="list-tabs">
+          <el-radio-group v-model="currentTab" size="large">
+            <el-radio-button label="published">已发布</el-radio-button>
+            <el-radio-button label="draft">草稿箱</el-radio-button>
+          </el-radio-group>
         </div>
+        <div class="header-right">
+          <div class="search-bar">
+            <el-input
+              v-model="searchQuery"
+              :placeholder="currentTab === 'published' ? '搜索已发布文章...' : '搜索草稿...'"
+              prefix-icon="el-icon-search"
+              clearable
+            />
+          </div>
+          <el-button type="primary" @click="createNewArticle">
+            <i class="el-icon-plus"></i>
+            写文章
+          </el-button>
+        </div>
+      </div>
+      
+      <div class="list-stats">
+        <span class="stat-item">
+          {{ currentTab === 'published' ? '已发布文章' : '草稿' }}：
+          <span class="stat-value">{{ filteredArticles.length }}</span> 篇
+        </span>
+        <span class="stat-item">
+          总字数：
+          <span class="stat-value">{{ getTotalWordCount(filteredArticles) }}</span> 字
+        </span>
+      </div>
+      
+      <el-empty
+        v-if="filteredArticles.length === 0"
+        :description="currentTab === 'published' ? '暂无已发布的文章' : '暂无草稿'"
+      >
         <el-button type="primary" @click="createNewArticle">
           <i class="el-icon-plus"></i>
           写文章
         </el-button>
-      </div>
-      
+      </el-empty>
+
       <el-table 
+        v-else
         :data="filteredArticles" 
         style="width: 100%"
         :header-cell-style="{
@@ -191,6 +221,9 @@ const history = ref({
   future: [],
   ignoreNextChange: false
 })
+
+// 添加当前标签页状态
+const currentTab = ref('published')
 
 // 监听内容变化
 watch(() => currentArticle.value.content, (newContent, oldContent) => {
@@ -384,15 +417,26 @@ const getWordCount = (content) => {
   return text.length
 }
 
-// 过滤文章列表
+// 修改过滤文章列表的逻辑
 const filteredArticles = computed(() => {
-  if (!searchQuery.value) return articles.value
+  // 首先按状态过滤
+  const statusFiltered = articles.value.filter(article => 
+    article.status === currentTab.value
+  )
+  
+  // 然后按搜索关键词过滤
+  if (!searchQuery.value) return statusFiltered
   const query = searchQuery.value.toLowerCase()
-  return articles.value.filter(article => 
+  return statusFiltered.filter(article => 
     article.title.toLowerCase().includes(query) ||
     article.summary?.toLowerCase().includes(query)
   )
 })
+
+// 计算总字数
+const getTotalWordCount = (articles) => {
+  return articles.reduce((total, article) => total + getWordCount(article.content), 0)
+}
 
 // 插入 Markdown 语法
 const insertMarkdown = async (type) => {
@@ -479,6 +523,35 @@ onMounted(() => {
   align-items: center;
   gap: 24px;
   border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+
+.header-right {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.list-tabs {
+  flex-shrink: 0;
+}
+
+.list-stats {
+  padding: 12px 24px;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  gap: 24px;
+}
+
+.stat-item {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.stat-value {
+  color: #2563eb;
+  font-weight: 600;
 }
 
 .search-bar {
@@ -777,5 +850,13 @@ onMounted(() => {
 
 .markdown-editor :deep(.el-textarea__inner) {
   border-radius: 0 0 8px 8px;
+}
+
+:deep(.el-radio-button__inner) {
+  padding: 8px 24px;
+}
+
+:deep(.el-empty) {
+  padding: 40px 0;
 }
 </style> 
