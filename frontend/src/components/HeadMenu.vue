@@ -3,20 +3,20 @@
     <div class="menu-container">
       <div class="menu-left">
         <router-link to="/" class="logo">
-          <i class="icon-gamepad"></i>
+          <el-icon class="logo-icon"><VideoPlay /></el-icon>
           <span class="logo-text">游戏文章</span>
         </router-link>
         <div class="nav-links">
           <router-link to="/home" class="nav-link">
-            <i class="icon-home"></i>
+            <el-icon><HomeFilled /></el-icon>
             发现
           </router-link>
           <router-link to="/articles" class="nav-link">
-            <i class="icon-edit"></i>
+            <el-icon><EditPen /></el-icon>
             创作文章
           </router-link>
           <router-link to="/dashboard" class="nav-link">
-            <i class="icon-articles"></i>
+            <el-icon><Document /></el-icon>
             我的文章
           </router-link>
         </div>
@@ -32,12 +32,12 @@
             <!-- 用户菜单下拉框 -->
             <div v-show="showUserMenu" class="user-dropdown">
               <router-link to="/dashboard" class="dropdown-item">
-                <i class="icon-dashboard"></i>
+                <el-icon><User /></el-icon>
                 个人中心
               </router-link>
               <div class="dropdown-divider"></div>
               <button class="dropdown-item" @click="handleLogout">
-                <i class="icon-logout"></i>
+                <el-icon><SwitchButton /></el-icon>
                 退出登录
               </button>
             </div>
@@ -57,6 +57,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { HomeFilled, EditPen, Document, User, SwitchButton, VideoPlay } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const showUserMenu = ref(false)
@@ -158,6 +159,11 @@ onUnmounted(() => {
   -webkit-text-fill-color: transparent;
 }
 
+.logo .logo-icon {
+  font-size: 24px;
+  color: var(--primary);
+}
+
 .logo-text {
   font-size: 20px;
   font-weight: 600;
@@ -183,7 +189,7 @@ onUnmounted(() => {
   border-radius: 12px;
 }
 
-.nav-link i {
+.nav-link .el-icon {
   font-size: 18px;
 }
 
@@ -326,28 +332,8 @@ onUnmounted(() => {
   margin: 4px 0;
 }
 
-.icon-gamepad::before {
-  content: "🎮";
-}
-
-.icon-home::before {
-  content: "🏠";
-}
-
-.icon-edit::before {
-  content: "✏️";
-}
-
-.icon-articles::before {
-  content: "📚";
-}
-
-.icon-dashboard::before {
-  content: "🎛️";
-}
-
-.icon-logout::before {
-  content: "🚪";
+.dropdown-item .el-icon {
+  font-size: 16px;
 }
 
 /* 响应式布局 */

@@ -8,7 +8,7 @@
         </div>
         <div class="header-actions">
           <div class="search-box">
-            <i class="icon-search"></i>
+            <el-icon class="search-icon"><Search /></el-icon>
             <input 
               type="text" 
               v-model="searchQuery" 
@@ -43,7 +43,7 @@
               <div class="article-meta">
                 <div class="meta-left">
                   <div class="meta-item">
-                    <i class="icon-calendar"></i>
+                    <el-icon><Calendar /></el-icon>
                     <span>{{ formatDate(article.created_at) }}</span>
                   </div>
                   <div class="meta-item author">
@@ -54,11 +54,11 @@
                 </div>
                 <div class="meta-right">
                   <div class="meta-item">
-                    <i class="icon-views"></i>
+                    <el-icon><View /></el-icon>
                     <span>{{ article.views || 0 }}</span>
                   </div>
                   <div class="meta-item">
-                    <i class="icon-likes"></i>
+                    <el-icon><Star /></el-icon>
                     <span>{{ article.likes || 0 }}</span>
                   </div>
                 </div>
@@ -68,7 +68,7 @@
         </div>
 
         <div v-if="articles.length === 0" class="empty-state">
-          <i class="icon-article"></i>
+          <el-icon class="empty-icon"><Edit /></el-icon>
           <p>暂无文章</p>
           <button class="create-btn" @click="createArticle">写文章</button>
         </div>
@@ -82,6 +82,7 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import HeadMenu from '../components/HeadMenu.vue'
+import { Search, Calendar, User, View, Star, Edit } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const articles = ref([])
@@ -252,7 +253,7 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.search-box i {
+.search-box .search-icon {
   position: absolute;
   left: 16px;
   top: 50%;
@@ -455,11 +456,12 @@ onMounted(() => {
   max-width: 600px;
 }
 
-.empty-state i {
-  font-size: 64px;
+.empty-state .empty-icon {
+  font-size: 48px;
   margin-bottom: 24px;
   display: block;
   opacity: 0.8;
+  color: var(--text-secondary);
 }
 
 .empty-state p {
@@ -486,28 +488,9 @@ onMounted(() => {
   box-shadow: 0 8px 24px rgba(var(--primary-rgb), 0.4);
 }
 
-.icon-search::before {
-  content: "🔍";
-}
-
-.icon-calendar::before {
-  content: "📅";
-}
-
-.icon-user::before {
-  content: "👤";
-}
-
-.icon-views::before {
-  content: "👁️";
-}
-
-.icon-likes::before {
-  content: "❤️";
-}
-
-.icon-article::before {
-  content: "📝";
+.meta-item .el-icon {
+  font-size: 16px;
+  color: var(--text-secondary);
 }
 
 /* 响应式布局 */
