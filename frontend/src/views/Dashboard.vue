@@ -249,7 +249,7 @@
                   <p v-if="isHeyboxBound">已绑定 - ID: {{ heyboxId }}</p>
                   <p v-else>导入游戏数据，同步游戏记录</p>
                 </div>
-                <el-button 
+                <button 
                   class="connect-btn"
                   :class="{ 'is-bound': isHeyboxBound }"
                   @click="handleHeyboxAction"
@@ -258,7 +258,7 @@
                 >
                   <i :class="isHeyboxBound ? 'el-icon-close' : 'el-icon-link'"></i>
                   <span>{{ isHeyboxBound ? (showUnbindText ? '解绑' : '已绑定') : '绑定' }}</span>
-                </el-button>
+                </button>
               </div>
               <!-- 预留其他第三方账号绑定卡片位置 -->
             </div>
@@ -476,6 +476,7 @@ const handleHeyboxAction = () => {
     handleUnbindHeybox()
   } else {
     heyboxDialogVisible.value = true
+    heyboxProfileUrl.value = '' // 重置输入框
   }
 }
 
@@ -1706,7 +1707,7 @@ document.documentElement.style.setProperty('--secondary-rgb', '16, 185, 129')
     padding: 12px;
   }
   
-  .sidebar-footer {
+ .sidebar-footer {
     margin-bottom: 60px;
   }
 }
@@ -1835,6 +1836,17 @@ document.documentElement.style.setProperty('--secondary-rgb', '16, 185, 129')
   align-items: center;
   gap: 6px;
   box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.connect-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .connect-btn.is-bound {
@@ -1847,6 +1859,10 @@ document.documentElement.style.setProperty('--secondary-rgb', '16, 185, 129')
   box-shadow: 0 6px 16px rgba(var(--primary-rgb), 0.3);
 }
 
+.connect-btn:hover::before {
+  opacity: 1;
+}
+
 .connect-btn.is-bound:hover {
   background: linear-gradient(135deg, #EF4444 0%, #F87171 100%);
   box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
@@ -1855,6 +1871,8 @@ document.documentElement.style.setProperty('--secondary-rgb', '16, 185, 129')
 .connect-btn i {
   font-size: 16px;
   transition: transform 0.3s ease;
+  position: relative;
+  z-index: 1;
 }
 
 .connect-btn:hover i {
@@ -1863,6 +1881,8 @@ document.documentElement.style.setProperty('--secondary-rgb', '16, 185, 129')
 
 .connect-btn span {
   font-size: 14px;
+  position: relative;
+  z-index: 1;
 }
 
 @media (max-width: 768px) {
@@ -1881,6 +1901,18 @@ document.documentElement.style.setProperty('--secondary-rgb', '16, 185, 129')
   
   .connect-icon i {
     font-size: 20px;
+  }
+  
+  .connect-btn {
+    padding: 6px 12px;
+  }
+  
+  .connect-btn i {
+    font-size: 14px;
+  }
+  
+  .connect-btn span {
+    font-size: 12px;
   }
 }
 </style> 
