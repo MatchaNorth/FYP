@@ -85,25 +85,43 @@
         <!-- 总览页面 -->
         <div v-if="currentView === 'overview'" class="overview-view" :class="{ 'fade-enter': viewTransition }">
           <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-icon"><i class="el-icon-document"></i></div>
+            <div class="stat-card" :class="{ 'highlight': articleStats.total > 0 }">
+              <div class="stat-icon article-icon">
+                <i class="el-icon-document"></i>
+              </div>
               <div class="stat-info">
                 <h3>文章总数</h3>
                 <p>{{ articleStats.total || 0 }}</p>
+                <div class="stat-trend" v-if="articleStats.total > 0">
+                  <i class="el-icon-top"></i>
+                  <span>较上月增长 {{ articleStats.growth || 0 }}%</span>
+                </div>
               </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-icon"><i class="el-icon-view"></i></div>
+            <div class="stat-card" :class="{ 'highlight': articleStats.views > 0 }">
+              <div class="stat-icon view-icon">
+                <i class="el-icon-view"></i>
+              </div>
               <div class="stat-info">
                 <h3>总阅读量</h3>
                 <p>{{ articleStats.views || 0 }}</p>
+                <div class="stat-trend positive" v-if="articleStats.views > 0">
+                  <i class="el-icon-top"></i>
+                  <span>今日 +{{ articleStats.todayViews || 0 }}</span>
+                </div>
               </div>
             </div>
-            <div class="stat-card">
-              <div class="stat-icon"><i class="el-icon-time"></i></div>
+            <div class="stat-card" :class="{ 'highlight': daysSinceRegistration > 0 }">
+              <div class="stat-icon time-icon">
+                <i class="el-icon-time"></i>
+              </div>
               <div class="stat-info">
                 <h3>注册天数</h3>
                 <p>{{ daysSinceRegistration }}天</p>
+                <div class="stat-badge" v-if="daysSinceRegistration >= 30">
+                  <i class="el-icon-medal"></i>
+                  <span>活跃用户</span>
+                </div>
               </div>
             </div>
           </div>
@@ -805,59 +823,129 @@ onMounted(async () => {
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
   margin-bottom: 40px;
+  animation: slideUp 0.6s ease-out;
 }
 
 .stat-card {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 16px;
-  padding: 28px;
+  border-radius: 20px;
+  padding: 32px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 24px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid rgba(226, 232, 240, 0.8);
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.stat-card.highlight::before {
+  opacity: 1;
 }
 
 .stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+  transform: translateY(-8px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
 }
 
 .stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
-  color: white;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+  font-size: 28px;
+  transition: all 0.3s ease;
+}
+
+.article-icon {
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  color: white;
+  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.2);
+}
+
+.view-icon {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  color: white;
+  box-shadow: 0 8px 16px rgba(5, 150, 105, 0.2);
+}
+
+.time-icon {
+  background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+  color: white;
+  box-shadow: 0 8px 16px rgba(124, 58, 237, 0.2);
+}
+
+.stat-info {
+  flex: 1;
 }
 
 .stat-info h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
   color: #64748b;
   font-weight: 500;
 }
 
 .stat-info p {
-  margin: 8px 0 0 0;
-  font-size: 28px;
+  margin: 12px 0;
+  font-size: 32px;
   font-weight: 600;
   color: #0f172a;
   letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.stat-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: #f0f9ff;
+  border-radius: 20px;
+  color: #0284c7;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.stat-trend.positive {
+  background-color: #f0fdf4;
+  color: #16a34a;
+}
+
+.stat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: #faf5ff;
+  border-radius: 20px;
+  color: #7c3aed;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .recent-activities {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 20px;
+  border-radius: 24px;
   padding: 32px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   border: 1px solid rgba(226, 232, 240, 0.8);
+  animation: slideUp 0.8s ease-out;
 }
 
 .section-header {
@@ -878,18 +966,19 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 20px;
   background-color: #ffffff;
-  border-radius: 12px;
+  border-radius: 16px;
   margin-bottom: 16px;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid #e2e8f0;
 }
 
 .activity-item:hover {
   background-color: #f8fafc;
-  border-color: #cbd5e1;
-  transform: translateX(5px);
+  border-color: #2563eb;
+  transform: translateX(8px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
 }
 
 .profile-card {
@@ -1034,5 +1123,77 @@ onMounted(async () => {
 
 .fade-enter {
   animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sidebar {
+  background: linear-gradient(180deg, #1e40af 0%, #1e3a8a 100%);
+  border-right: none;
+}
+
+.nav-item {
+  color: rgba(255, 255, 255, 0.7);
+  border-left: 3px solid transparent;
+  margin: 4px 16px;
+  border-radius: 12px;
+}
+
+.nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.nav-item.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border-left-color: #60a5fa;
+}
+
+.sidebar-footer {
+  background-color: rgba(239, 68, 68, 0.1);
+  margin: 16px;
+  border-radius: 12px;
+  color: #fecaca;
+}
+
+.sidebar-footer:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+.user-profile-mini {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 20px;
+  margin: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.user-info h3 {
+  color: #ffffff;
+}
+
+.user-info p {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.main-header {
+  backdrop-filter: blur(12px);
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+.profile-card, .security-card {
+  backdrop-filter: blur(12px);
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.8);
 }
 </style> 
