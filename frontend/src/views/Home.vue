@@ -30,42 +30,61 @@
       </header>
 
       <main class="articles-container">
-        <div class="articles-grid">
-          <article v-for="article in filteredArticles" :key="article.id" class="article-card glass-card" @click="viewArticle(article.id)">
+        <TransitionGroup 
+          name="article-list" 
+          tag="div" 
+          class="articles-grid"
+        >
+          <article 
+            v-for="article in filteredArticles" 
+            :key="article.id" 
+            class="article-card glass-card" 
+            @click="viewArticle(article.id)"
+          >
             <div class="article-content">
               <div class="article-header">
-                <h2>{{ article.title }}</h2>
-                <div class="article-status" :class="article.status">
-                  {{ article.status === 'published' ? '已发布' : '草稿' }}
+                <div class="title-section">
+                  <h2 class="article-title">{{ article.title }}</h2>
+                  <div class="article-tags">
+                    <span class="article-tag">游戏</span>
+                  </div>
                 </div>
               </div>
               <p class="article-summary">{{ article.summary }}</p>
               <div class="article-meta">
                 <div class="meta-left">
-                  <div class="meta-item">
-                    <el-icon><Calendar /></el-icon>
-                    <span>{{ formatDate(article.created_at) }}</span>
-                  </div>
-                  <div class="meta-item author">
-                    <img v-if="article.author_avatar" :src="article.author_avatar" class="author-avatar" alt="作者头像">
-                    <span v-else class="author-placeholder">{{ article.author.slice(0, 2) }}</span>
-                    <span>{{ article.author_nickname || article.author }}</span>
+                  <div class="author-info">
+                    <div class="author-avatar">
+                      <img 
+                        v-if="article.author_avatar" 
+                        :src="article.author_avatar" 
+                        alt="作者头像"
+                      >
+                      <span v-else class="avatar-placeholder">
+                        {{ article.author.slice(0, 2) }}
+                      </span>
+                    </div>
+                    <div class="author-details">
+                      <span class="author-name">{{ article.author_nickname || article.author }}</span>
+                      <span class="publish-time">{{ formatDate(article.created_at) }}</span>
+                    </div>
                   </div>
                 </div>
                 <div class="meta-right">
-                  <div class="meta-item">
+                  <div class="stat-item">
                     <el-icon><View /></el-icon>
                     <span>{{ article.views || 0 }}</span>
                   </div>
-                  <div class="meta-item">
+                  <div class="stat-item">
                     <el-icon><Star /></el-icon>
                     <span>{{ article.likes || 0 }}</span>
                   </div>
                 </div>
               </div>
             </div>
+            <div class="hover-effect"></div>
           </article>
-        </div>
+        </TransitionGroup>
 
         <div v-if="articles.length === 0" class="empty-state">
           <el-icon class="empty-icon"><Edit /></el-icon>
@@ -298,272 +317,232 @@ onMounted(() => {
   margin: 0 auto;
   padding: 0 60px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 32px;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 24px;
 }
 
-.article-card {
-  height: 100%;
-  padding: 32px;
-  border-radius: 24px;
-  background: var(--card-bg);
-  backdrop-filter: blur(20px);
-  cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  flex-direction: column;
+/* 文章卡片动画 */
+.article-list-enter-active,
+.article-list-leave-active {
+  transition: all 0.5s ease;
 }
 
-.article-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, 
-    rgba(var(--primary-rgb), 0.1) 0%,
-    rgba(var(--primary-light-rgb), 0.1) 100%
-  );
+.article-list-enter-from {
   opacity: 0;
-  transition: opacity 0.4s ease;
+  transform: translateY(30px);
+}
+
+.article-list-leave-to {
+  opacity: 0;
+  transform: translateY(-30px);
+}
+
+/* 文章卡片样式 */
+.article-card {
+  position: relative;
+  background: var(--card-bg);
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .article-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
-  border-color: rgba(var(--primary-rgb), 0.2);
-}
-
-.article-card:hover::before {
-  opacity: 1;
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
 }
 
 .article-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+  padding: 24px;
+  position: relative;
+  z-index: 1;
 }
 
-.article-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
+.title-section {
   margin-bottom: 16px;
 }
 
-.article-header h2 {
-  font-size: 24px;
+.article-title {
+  font-size: 20px;
   font-weight: 600;
+  line-height: 1.4;
   color: var(--text-primary);
+  margin-bottom: 8px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  line-height: 1.4;
-  flex: 1;
 }
 
-.article-status {
-  padding: 6px 12px;
+.article-tags {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.article-tag {
+  padding: 4px 12px;
   border-radius: 20px;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
-  white-space: nowrap;
-}
-
-.article-status.published {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10B981;
-}
-
-.article-status.draft {
-  background: rgba(var(--primary-rgb), 0.15);
   color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.1);
 }
 
 .article-summary {
-  color: var(--text-secondary);
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.6;
-  margin-bottom: 24px;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: 76px;
-  flex: 1;
+  opacity: 0.8;
 }
 
 .article-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.meta-left, .meta-right {
+.author-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.author-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+}
+
+.author-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.author-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.author-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.publish-time {
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+.meta-right {
   display: flex;
   gap: 16px;
-  align-items: center;
 }
 
-.meta-item {
+.stat-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   color: var(--text-secondary);
   font-size: 14px;
 }
 
-.meta-item.author {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.author-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.author-placeholder {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-  color: white;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 80px 20px;
-  color: var(--text-secondary);
-  background: var(--card-bg);
-  border-radius: 32px;
-  backdrop-filter: blur(20px);
-  margin: 0 auto;
-  max-width: 600px;
-}
-
-.empty-state .empty-icon {
-  font-size: 48px;
-  margin-bottom: 24px;
-  display: block;
-  opacity: 0.8;
-  color: var(--text-secondary);
-}
-
-.empty-state p {
-  font-size: 18px;
-  margin-bottom: 32px;
-  opacity: 0.8;
-}
-
-.create-btn {
-  padding: 14px 32px;
-  border-radius: 16px;
-  border: none;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-  color: white;
-  font-weight: 600;
+.stat-item .el-icon {
   font-size: 16px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.2);
 }
 
-.create-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 8px 24px rgba(var(--primary-rgb), 0.4);
+/* 悬停效果 */
+.hover-effect {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--primary-rgb), 0.1) 0%,
+    rgba(var(--primary-rgb), 0) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
-.meta-item .el-icon {
-  font-size: 16px;
-  color: var(--text-secondary);
+.article-card:hover .hover-effect {
+  opacity: 1;
 }
 
-/* 响应式布局 */
-@media (max-width: 1440px) {
-  .header-content,
-  .header-actions,
+/* 响应式设计 */
+@media (max-width: 1200px) {
   .articles-grid {
-    padding: 0 40px;
-  }
-
-  .articles-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 24px;
-  }
-  
-  .home-header {
-    padding: 32px 0;
-  }
-}
-
-@media (max-width: 1024px) {
-  .header-content,
-  .header-actions,
-  .articles-grid {
-    padding: 0 24px;
-  }
-
-  .articles-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px;
-  }
-  
-  .home-header {
-    padding: 24px 0;
-  }
-  
-  .header-content h1 {
-    font-size: 36px;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   }
 }
 
 @media (max-width: 768px) {
-  .header-content,
-  .header-actions,
-  .articles-grid {
+  .articles-container {
     padding: 0 20px;
   }
 
   .articles-grid {
     grid-template-columns: 1fr;
   }
-  
-  .home-header {
-    padding: 20px 0;
+
+  .article-card {
+    margin-bottom: 16px;
   }
-  
-  .header-content h1 {
-    font-size: 28px;
-  }
-  
-  .header-actions {
-    flex-direction: column;
-    gap: 16px;
-  }
-  
-  .search-box {
-    max-width: none;
-  }
-  
-  .filter-box {
-    width: 100%;
-    overflow-x: auto;
-    padding-bottom: 8px;
-  }
-  
-  .filter-btn {
-    white-space: nowrap;
-  }
+}
+
+/* 空状态样式 */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.create-btn {
+  margin-top: 20px;
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.create-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
 }
 </style> 
