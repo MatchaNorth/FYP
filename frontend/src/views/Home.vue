@@ -144,11 +144,7 @@ const handleSearch = () => {
 // 获取文章列表
 const fetchArticles = async () => {
   try {
-    const token = localStorage.getItem('token')
-    const response = await axios.get('http://localhost:5000/api/articles', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    
+    const response = await axios.get('http://localhost:5000/api/articles/public')
     if (response.data.code === 200) {
       articles.value = response.data.data.sort((a, b) => 
         new Date(b.created_at) - new Date(a.created_at)
