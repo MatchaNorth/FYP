@@ -806,6 +806,67 @@ def get_public_articles():
         print(f"获取公开文章列表错误: {str(e)}")
         return jsonify({'message': '获取文章列表失败'}), 500
 
+@app.route('/api/articles/public/<int:article_id>', methods=['GET'])
+def get_public_article(article_id):
+    try:
+        article = Article.query.get(article_id)
+        
+        if not article:
+            return jsonify({
+                'code': 404,
+                'message': '文章不存在'
+            }), 404
+            
+        # 只允许获取已发布的文章
+        if article.status != 'published':
+            return jsonify({
+                'code': 404,
+                'message': '文章不存在或未发布'
+            }), 404
+        
+        # 记录浏览量
+        try:
+            # 获取访问者信息
+            ip_address = request.remote_addr
+            user_agent = request.headers.get('User-Agent', '')
+            
+            # 检查是否在短时间内重复访问（1小时内同一IP只记录一次浏览）
+            one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+            recent_view = ArticleView.query.filter(
+                ArticleView.article_id == article_id,
+                ArticleView.ip_address == ip_address,
+                ArticleView.created_at > one_hour_ago
+            ).first()
+            
+            if not recent_view:
+                # 记录新的浏览
+                view = ArticleView(
+                    article_id=article_id,
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+                db.session.add(view)
+                
+                # 更新文章浏览量
+                article.views += 1
+                db.session.commit()
+        except Exception as e:
+            print(f"记录浏览量失败: {str(e)}")
+            # 继续处理，不影响文章获取
+            pass
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取文章详情成功',
+            'data': article.to_dict()
+        })
+    except Exception as e:
+        print(f"获取公开文章详情错误: {str(e)}")
+        return jsonify({
+            'code': 500,
+            'message': str(e)
+        }), 500
+
 @app.route('/api/articles/<int:article_id>/view', methods=['POST'])
 def increment_article_views(article_id):
     try:
@@ -1027,6 +1088,14 @@ def get_article_analytics():
     except Exception as e:
         print(f"获取文章统计分析错误: {str(e)}")
         return jsonify({'message': '获取统计分析失败'}), 500
+
+# 全局错误处理器
+@app.errorhandler(404)
+def not_found_error(error):
+    return jsonify({
+        'code': 404,
+        'message': '资源不存在'
+    }), 404
 
 # 初始化数据库
 with app.app_context():

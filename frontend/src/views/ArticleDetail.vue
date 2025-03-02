@@ -117,14 +117,14 @@ const isAuthor = computed(() => {
 const fetchArticle = async () => {
   try {
     const token = localStorage.getItem('token')
-    const response = await axios.get(`http://localhost:5000/api/articles/${route.params.id}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
+    const response = await axios.get(`http://localhost:5000/api/articles/public/${route.params.id}`)
     
     if (response.data.code === 200) {
       article.value = response.data.data
-      fetchAuthorStats()
-      checkLikeStatus()
+      if (token) {
+        fetchAuthorStats()
+        checkLikeStatus()
+      }
     }
   } catch (error) {
     console.error('获取文章详情失败:', error)
@@ -136,6 +136,8 @@ const fetchArticle = async () => {
 const fetchAuthorStats = async () => {
   try {
     const token = localStorage.getItem('token')
+    if (!token) return
+    
     const response = await axios.get(`http://localhost:5000/api/users/${article.value.author_id}/stats`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -152,6 +154,8 @@ const fetchAuthorStats = async () => {
 const checkLikeStatus = async () => {
   try {
     const token = localStorage.getItem('token')
+    if (!token) return
+    
     const response = await axios.get(`http://localhost:5000/api/articles/${route.params.id}/like`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -168,6 +172,12 @@ const checkLikeStatus = async () => {
 const handleLike = async () => {
   try {
     const token = localStorage.getItem('token')
+    if (!token) {
+      ElMessage.warning('请先登录后再点赞')
+      router.push('/login')
+      return
+    }
+    
     const response = await axios.post(`http://localhost:5000/api/articles/${route.params.id}/like`, {}, {
       headers: { 'Authorization': `Bearer ${token}` }
     })

@@ -158,7 +158,7 @@ const fetchArticles = async () => {
 
 // 查看文章详情
 const viewArticle = (id) => {
-  router.push(`/article/${id}`)
+  router.push(`/articles/public/${id}`)
 }
 
 // 创建新文章

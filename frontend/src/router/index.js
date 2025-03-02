@@ -13,8 +13,7 @@ const routes = [
   {
     path: '/home',
     name: 'Home',
-    component: Home,
-    meta: { requiresAuth: true }
+    component: Home
   },
   {
     path: '/login',
@@ -34,10 +33,9 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/article/:id',
+    path: '/articles/public/:id',
     name: 'article-detail',
-    component: ArticleDetail,
-    meta: { requiresAuth: true }
+    component: ArticleDetail
   }
 ]
 

@@ -11,14 +11,16 @@
             <el-icon><HomeFilled /></el-icon>
             发现
           </router-link>
-          <router-link to="/articles" class="nav-link">
-            <el-icon><EditPen /></el-icon>
-            创作文章
-          </router-link>
-          <router-link to="/dashboard" class="nav-link">
-            <el-icon><Document /></el-icon>
-            我的文章
-          </router-link>
+          <template v-if="isLoggedIn">
+            <router-link to="/articles" class="nav-link">
+              <el-icon><EditPen /></el-icon>
+              创作文章
+            </router-link>
+            <router-link to="/dashboard" class="nav-link">
+              <el-icon><Document /></el-icon>
+              我的文章
+            </router-link>
+          </template>
         </div>
       </div>
       
