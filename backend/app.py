@@ -964,7 +964,6 @@ def toggle_article_like(article_id):
         return jsonify({'message': '操作失败'}), 500
 
 @app.route('/api/users/<int:user_id>/stats', methods=['GET'])
-@jwt_required()
 def get_user_stats(user_id):
     try:
         user = User.query.get_or_404(user_id)

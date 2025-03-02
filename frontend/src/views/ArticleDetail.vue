@@ -116,13 +116,13 @@ const isAuthor = computed(() => {
 // 获取文章详情
 const fetchArticle = async () => {
   try {
-    const token = localStorage.getItem('token')
     const response = await axios.get(`http://localhost:5000/api/articles/public/${route.params.id}`)
     
     if (response.data.code === 200) {
       article.value = response.data.data
+      fetchAuthorStats()
+      const token = localStorage.getItem('token')
       if (token) {
-        fetchAuthorStats()
         checkLikeStatus()
       }
     }
@@ -135,12 +135,7 @@ const fetchArticle = async () => {
 // 获取作者统计信息
 const fetchAuthorStats = async () => {
   try {
-    const token = localStorage.getItem('token')
-    if (!token) return
-    
-    const response = await axios.get(`http://localhost:5000/api/users/${article.value.author_id}/stats`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
+    const response = await axios.get(`http://localhost:5000/api/users/${article.value.author_id}/stats`)
     
     if (response.data.code === 200) {
       authorStats.value = response.data.data
@@ -174,7 +169,6 @@ const handleLike = async () => {
     const token = localStorage.getItem('token')
     if (!token) {
       ElMessage.warning('请先登录后再点赞')
-      router.push('/login')
       return
     }
     
@@ -232,18 +226,21 @@ onMounted(() => {
 <style scoped>
 .article-detail-container {
   min-height: 100vh;
+  width: 100%;
   background: var(--bg-gradient);
   padding-top: 64px;
 }
 
 .article-content {
-  max-width: 1440px;
-  margin: 0 auto;
+  min-width: 100%;
+  height: calc(100vh - 64px);
+  margin: 0;
   padding: 40px 60px;
   display: grid;
   grid-template-columns: 1fr 320px;
   gap: 32px;
   animation: fadeIn 0.6s ease;
+  overflow-y: auto;
 }
 
 @keyframes fadeIn {
@@ -435,6 +432,7 @@ onMounted(() => {
   .article-content {
     padding: 24px;
     grid-template-columns: 1fr;
+    height: auto;
   }
 
   .article-sidebar {
@@ -451,6 +449,7 @@ onMounted(() => {
 @media (max-width: 768px) {
   .article-content {
     padding: 16px;
+    height: auto;
   }
 
   .article-main {
