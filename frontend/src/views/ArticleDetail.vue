@@ -28,9 +28,10 @@
       <!-- 右侧作者信息和操作 -->
       <div class="article-sidebar">
         <div class="author-card glass-card">
-          <div class="author-info">
-            <img v-if="article.author_avatar" :src="article.author_avatar" class="author-avatar" alt="作者头像">
-            <span v-else class="author-avatar-placeholder">{{ article.author?.slice(0, 2) }}</span>
+          <div class="author-info" @click="goToUserProfile(article.author_id)">
+            <el-avatar :size="48" :src="article.author_avatar">
+              {{ article.author_nickname?.charAt(0)?.toUpperCase() }}
+            </el-avatar>
             <div class="author-details">
               <h3>{{ article.author_nickname || article.author }}</h3>
               <p class="author-bio">游戏爱好者</p>
@@ -218,6 +219,11 @@ const handleDelete = async () => {
   }
 }
 
+// 跳转到用户资料页
+const goToUserProfile = (userId) => {
+  router.push(`/user/${userId}`)
+}
+
 onMounted(() => {
   fetchArticle()
 })
@@ -314,6 +320,15 @@ onMounted(() => {
   align-items: center;
   gap: 16px;
   margin-bottom: 24px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.author-info:hover {
+  background: rgba(var(--primary-rgb), 0.05);
+  transform: translateX(4px);
 }
 
 .author-avatar {
@@ -592,5 +607,48 @@ onMounted(() => {
   margin: 2em 0;
   border: none;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.article-author {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  margin-bottom: 24px;
+}
+
+.author-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.author-text h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.author-text p {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.article-stats {
+  display: flex;
+  gap: 24px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.stat-item i {
+  font-size: 16px;
+  color: var(--primary);
 }
 </style> 

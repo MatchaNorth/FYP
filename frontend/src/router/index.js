@@ -4,6 +4,7 @@ import Dashboard from '../views/Dashboard.vue'
 import ArticleManager from '../views/ArticleManager.vue'
 import Home from '../views/Home.vue'
 import ArticleDetail from '../views/ArticleDetail.vue'
+import UserProfile from '../views/UserProfile.vue'
 
 const routes = [
   {
@@ -36,6 +37,12 @@ const routes = [
     path: '/articles/public/:id',
     name: 'article-detail',
     component: ArticleDetail
+  },
+  {
+    path: '/user/:id',
+    name: 'UserProfile',
+    component: UserProfile,
+    props: true
   }
 ]
 
