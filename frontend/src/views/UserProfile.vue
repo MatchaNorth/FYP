@@ -7,10 +7,11 @@
       </div>
       <div class="profile-main">
         <div class="profile-avatar">
-          <el-avatar :size="120" :src="userInfo.avatar">
+          <el-avatar :size="120" :src="userInfo.avatar" class="avatar-image">
             {{ userInfo.nickname?.charAt(0)?.toUpperCase() }}
           </el-avatar>
           <div class="user-status" :class="{ 'online': userInfo.isOnline }">
+            <span class="status-dot"></span>
             {{ userInfo.isOnline ? '在线' : '离线' }}
           </div>
         </div>
@@ -53,7 +54,7 @@
       <!-- 左侧信息栏 -->
       <div class="left-sidebar">
         <div class="info-card glass-card">
-          <h3>个人信息</h3>
+          <h3><i class="el-icon-user"></i> 个人信息</h3>
           <div class="info-list">
             <div class="info-item">
               <i class="el-icon-date"></i>
@@ -71,7 +72,7 @@
         </div>
 
         <div class="game-tags glass-card">
-          <h3>游戏标签</h3>
+          <h3><i class="el-icon-collection-tag"></i> 游戏标签</h3>
           <div class="tag-cloud">
             <el-tag
               v-for="tag in userInfo.gameTags"
@@ -91,13 +92,13 @@
       <div class="main-content">
         <!-- 活跃度热力图 -->
         <div class="activity-heatmap glass-card">
-          <h3>活跃度</h3>
+          <h3><i class="el-icon-data-line"></i> 活跃度</h3>
           <div class="heatmap-container" ref="heatmapContainer"></div>
         </div>
 
         <!-- 最近发布的文章 -->
         <div class="recent-articles glass-card">
-          <h3>最近发布</h3>
+          <h3><i class="el-icon-document"></i> 最近发布</h3>
           <div class="article-list">
             <div 
               v-for="article in userInfo.recentArticles" 
@@ -107,10 +108,11 @@
             >
               <div class="article-cover" :style="{ backgroundImage: `url(${article.cover})` }">
                 <div class="article-meta">
-                  <span class="article-date">{{ formatDate(article.publishDate) }}</span>
+                  <span class="article-date">
+                    <i class="el-icon-time"></i> {{ formatDate(article.publishDate) }}
+                  </span>
                   <span class="article-views">
-                    <i class="el-icon-view"></i>
-                    {{ article.views }}
+                    <i class="el-icon-view"></i> {{ article.views }}
                   </span>
                 </div>
               </div>
@@ -123,12 +125,16 @@
                     :key="tag"
                     size="small"
                     effect="dark"
+                    class="article-tag"
                   >
                     {{ tag }}
                   </el-tag>
                 </div>
               </div>
             </div>
+          </div>
+          <div class="view-more" v-if="userInfo.articleCount > userInfo.recentArticles.length">
+            <el-button type="primary" plain>查看更多文章</el-button>
           </div>
         </div>
       </div>
@@ -137,10 +143,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import * as echarts from 'echarts'
+import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
@@ -190,6 +197,11 @@ const initHeatmap = () => {
       position: 'top',
       formatter: (params) => {
         return `${params.data[0]}: ${params.data[1]} 次活动`
+      },
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      borderWidth: 0,
+      textStyle: {
+        color: '#fff'
       }
     },
     visualMap: {
@@ -201,6 +213,9 @@ const initHeatmap = () => {
       bottom: '15%',
       textStyle: {
         color: '#888'
+      },
+      inRange: {
+        color: ['#ebedf0', '#c6e48b', '#7bc96f', '#239a3b', '#196127']
       }
     },
     calendar: {
@@ -219,7 +234,8 @@ const initHeatmap = () => {
         show: false
       },
       itemStyle: {
-        borderWidth: 0.5
+        borderWidth: 0.5,
+        borderColor: '#eee'
       }
     },
     series: [{
@@ -239,7 +255,7 @@ const initHeatmap = () => {
 const fetchUserInfo = async () => {
   try {
     const userId = route.params.id
-    const response = await axios.get(`http://localhost:5000/api/user/${userId}/profile`)
+    const response = await axios.get(`http://localhost:5000/api/users/${userId}/profile`)
     if (response.data.code === 200) {
       userInfo.value = response.data.data
       // 初始化热力图
@@ -266,42 +282,95 @@ onMounted(() => {
 </script>
 
 <style scoped>
+:root {
+  --primary: #3b82f6;
+  --primary-light: #60a5fa;
+  --primary-dark: #2563eb;
+  --primary-rgb: 59, 130, 246;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --border-color: rgba(229, 231, 235, 0.5);
+  --card-bg: rgba(255, 255, 255, 0.8);
+  --bg-gradient: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+}
+
+.dark {
+  --text-primary: #f3f4f6;
+  --text-secondary: #d1d5db;
+  --border-color: rgba(75, 85, 99, 0.5);
+  --card-bg: rgba(31, 41, 55, 0.8);
+  --bg-gradient: linear-gradient(135deg, #111827 0%, #1f2937 100%);
+}
+
 .user-profile-container {
-  padding: 32px;
+  padding: 0;
   min-height: 100vh;
   background: var(--bg-gradient);
+  transition: all 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .profile-hero {
   position: relative;
-  border-radius: 24px;
   overflow: hidden;
-  margin-bottom: 32px;
+  margin-bottom: 0;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  width: 100%;
+  border-radius: 0;
+}
+
+.profile-hero:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.12);
 }
 
 .profile-cover {
-  height: 240px;
+  height: 360px;
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
   position: relative;
+  transition: all 0.3s ease;
 }
 
 .cover-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.4) 100%);
+  background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.5) 100%);
 }
 
 .profile-main {
-  padding: 32px;
-  margin-top: -80px;
+  padding: 0 48px;
+  margin-top: -120px;
   position: relative;
   z-index: 1;
   display: flex;
-  gap: 32px;
+  gap: 48px;
+  align-items: flex-start;
+  max-width: 1920px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .profile-avatar {
-  position: relative;
+  flex-shrink: 0;
+}
+
+.avatar-image {
+  width: 160px !important;
+  height: 160px !important;
+  font-size: 48px !important;
+  border: 6px solid #fff;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+  transition: transform 0.3s ease;
+}
+
+.avatar-image:hover {
+  transform: scale(1.05);
 }
 
 .user-status {
@@ -314,34 +383,67 @@ onMounted(() => {
   font-weight: 600;
   background: rgba(239, 68, 68, 0.9);
   color: white;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #fff;
+  display: inline-block;
 }
 
 .user-status.online {
   background: rgba(16, 185, 129, 0.9);
 }
 
+.user-status.online .status-dot {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
 .profile-info {
   flex: 1;
+  padding-top: 40px;
 }
 
 .profile-info h1 {
-  font-size: 32px;
+  font-size: clamp(24px, 4vw, 32px);
   font-weight: 700;
   margin-bottom: 8px;
   background: linear-gradient(to right, var(--primary), var(--primary-light));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.05);
 }
 
 .user-bio {
   color: var(--text-secondary);
-  font-size: 16px;
+  font-size: clamp(14px, 2vw, 16px);
   margin-bottom: 24px;
+  line-height: 1.6;
 }
 
 .user-stats {
   display: flex;
-  gap: 32px;
+  gap: clamp(16px, 4vw, 32px);
   margin-bottom: 24px;
 }
 
@@ -349,12 +451,17 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  transition: transform 0.3s ease;
+}
+
+.stat-item:hover {
+  transform: translateY(-5px);
 }
 
 .stat-value {
-  font-size: 24px;
+  font-size: clamp(20px, 3vw, 24px);
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--primary);
 }
 
 .stat-label {
@@ -378,6 +485,12 @@ onMounted(() => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.badge-item:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
 }
 
 .badge-item.gold {
@@ -396,28 +509,49 @@ onMounted(() => {
 }
 
 .content-grid {
+  padding: 48px;
   display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 32px;
-  margin-top: 32px;
+  grid-template-columns: 320px 1fr;
+  gap: 48px;
+  max-width: 1920px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .glass-card {
   background: var(--card-bg);
   backdrop-filter: blur(20px);
-  border-radius: 24px;
-  padding: 24px;
+  border-radius: clamp(16px, 3vw, 24px);
+  padding: clamp(16px, 3vw, 24px);
   border: 1px solid var(--border-color);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.08);
 }
 
 .info-card h3,
 .game-tags h3,
 .activity-heatmap h3,
 .recent-articles h3 {
-  font-size: 20px;
+  font-size: clamp(18px, 2.5vw, 20px);
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.info-card h3 i,
+.game-tags h3 i,
+.activity-heatmap h3 i,
+.recent-articles h3 i {
+  color: var(--primary);
 }
 
 .info-list {
@@ -431,6 +565,14 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   color: var(--text-secondary);
+  transition: transform 0.3s ease;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.info-item:hover {
+  transform: translateX(5px);
+  background-color: rgba(var(--primary-rgb), 0.1);
 }
 
 .info-item i {
@@ -449,25 +591,33 @@ onMounted(() => {
   border-radius: 20px;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.1);
 }
 
 .game-tag:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.15);
 }
 
 .tag-count {
   margin-left: 8px;
   opacity: 0.8;
+  background: rgba(255,255,255,0.2);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 0.8em;
 }
 
 .heatmap-container {
-  height: 200px;
+  height: 240px;
   margin-top: 16px;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .article-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 24px;
 }
 
@@ -477,17 +627,27 @@ onMounted(() => {
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .article-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
 }
 
 .article-cover {
-  height: 160px;
+  height: 200px;
   background-size: cover;
   background-position: center;
   position: relative;
+  transition: all 0.3s ease;
+}
+
+.article-card:hover .article-cover {
+  transform: scale(1.05);
 }
 
 .article-meta {
@@ -505,24 +665,21 @@ onMounted(() => {
 }
 
 .article-info {
-  padding: 16px;
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
 }
 
 .article-info h4 {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--text-primary);
+  font-size: 20px;
+  margin-bottom: 12px;
 }
 
 .article-info p {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-bottom: 16px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  font-size: 15px;
+  margin-bottom: 20px;
+  flex: 1;
 }
 
 .article-tags {
@@ -531,36 +688,132 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
+.article-tag {
+  transition: transform 0.3s ease;
+}
+
+.article-tag:hover {
+  transform: translateY(-2px);
+}
+
+.view-more {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.left-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 72px);
+  overflow-y: auto;
+  padding-right: 12px;
+}
+
+.main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0; /* 防止内容溢出 */
+}
+
+.activity-heatmap {
+  margin-bottom: 24px;
+}
+
+/* 响应式布局优化 */
+@media (min-width: 2000px) {
+  .profile-main,
+  .content-grid {
+    padding-left: calc((100% - 1920px) / 2 + 48px);
+    padding-right: calc((100% - 1920px) / 2 + 48px);
+  }
+}
+
+@media (max-width: 1600px) {
+  .profile-cover {
+    height: 320px;
+  }
+
+  .profile-main {
+    padding: 0 40px;
+  }
+
+  .content-grid {
+    padding: 40px;
+    grid-template-columns: 300px 1fr;
+    gap: 40px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .profile-cover {
+    height: 280px;
+  }
+
+  .profile-main {
+    padding: 0 32px;
+  }
+
+  .content-grid {
+    padding: 32px;
+    grid-template-columns: 280px 1fr;
+    gap: 32px;
+  }
+}
+
 @media (max-width: 1024px) {
+  .profile-cover {
+    height: 240px;
+  }
+
   .content-grid {
     grid-template-columns: 1fr;
+    padding: 24px;
   }
   
   .left-sidebar {
+    position: static;
+    max-height: none;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 24px;
+    padding-right: 0;
   }
 }
 
 @media (max-width: 768px) {
-  .user-profile-container {
-    padding: 16px;
+  .profile-cover {
+    height: 200px;
   }
-  
+
   .profile-main {
+    padding: 0 20px;
     flex-direction: column;
     align-items: center;
     text-align: center;
     margin-top: -60px;
   }
-  
-  .user-stats {
-    justify-content: center;
-  }
-  
-  .user-badges {
-    justify-content: center;
+
+  .content-grid {
+    padding: 20px;
   }
 }
-</style> 
+
+@media (max-width: 480px) {
+  .profile-cover {
+    height: 180px;
+  }
+  
+  .profile-main {
+    padding: 0 16px;
+    margin-top: -50px;
+  }
+
+  .content-grid {
+    padding: 16px;
+  }
+}
+</style>
