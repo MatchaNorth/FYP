@@ -1088,6 +1088,73 @@ def get_article_analytics():
         print(f"获取文章统计分析错误: {str(e)}")
         return jsonify({'message': '获取统计分析失败'}), 500
 
+@app.route('/api/users/<int:user_id>/profile', methods=['GET'])
+def get_user_public_profile(user_id):
+    try:
+        user = User.query.get_or_404(user_id)
+        stats = get_user_stats(user_id).get_json()['data']
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': {
+                'id': user.id,
+                'nickname': user.nickname or user.username,
+                'avatar': user.avatar or user.heybox_avatar,
+                'bio': '',  # 待添加字段
+                'isOnline': False,  # 待实现在线状态
+                'articleCount': stats['articles'],
+                'totalViews': stats['total_views'],
+                'likeCount': stats['total_likes'],
+                'joinDate': user.created_at.isoformat(),
+                'level': 1,  # 待实现等级系统
+                'achievementPoints': 0,  # 待实现成就系统
+                'badges': [],  # 待实现徽章系统
+                'gameTags': [],  # 待实现游戏标签系统
+                'recentArticles': [article.to_dict() for article in 
+                    Article.query.filter_by(author_id=user_id, status='published')
+                    .order_by(Article.created_at.desc()).limit(6).all()
+                ],
+                'activityData': []  # 待实现活跃度数据
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'code': 500,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/users/<int:user_id>/activity', methods=['GET'])
+def get_user_activity_data(user_id):
+    try:
+        # 获取过去一年的文章发布记录
+        one_year_ago = datetime.utcnow() - timedelta(days=365)
+        articles = Article.query.filter(
+            Article.author_id == user_id,
+            Article.status == 'published',
+            Article.created_at >= one_year_ago
+        ).all()
+        
+        # 按日期统计活动
+        activity_data = {}
+        for article in articles:
+            date_str = article.created_at.strftime('%Y-%m-%d')
+            activity_data[date_str] = activity_data.get(date_str, 0) + 1
+        
+        # 转换为前端需要的格式 [日期, 活动次数]
+        formatted_data = [[date_str, count] for date_str, count in activity_data.items()]
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': formatted_data
+        })
+    except Exception as e:
+        return jsonify({
+            'code': 500,
+            'message': str(e)
+        }), 500
+
 # 全局错误处理器
 @app.errorhandler(404)
 def not_found_error(error):

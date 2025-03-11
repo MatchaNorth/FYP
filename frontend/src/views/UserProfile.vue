@@ -255,9 +255,17 @@ const initHeatmap = () => {
 const fetchUserInfo = async () => {
   try {
     const userId = route.params.id
-    const response = await axios.get(`http://localhost:5000/api/users/${userId}/profile`)
-    if (response.data.code === 200) {
-      userInfo.value = response.data.data
+    const [profileResponse, activityResponse] = await Promise.all([
+      axios.get(`http://localhost:5000/api/users/${userId}/profile`),
+      axios.get(`http://localhost:5000/api/users/${userId}/activity`)
+    ])
+    
+    if (profileResponse.data.code === 200) {
+      userInfo.value = {
+        ...profileResponse.data.data,
+        activityData: activityResponse.data.code === 200 ? activityResponse.data.data : []
+      }
+      
       // 初始化热力图
       nextTick(() => {
         initHeatmap()
@@ -430,6 +438,7 @@ onMounted(() => {
   margin-bottom: 8px;
   background: linear-gradient(to right, var(--primary), var(--primary-light));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: 0 2px 10px rgba(0,0,0,0.05);
 }
