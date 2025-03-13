@@ -184,7 +184,7 @@ const formatDate = (date) => {
 
 // 查看文章详情
 const viewArticle = (articleId) => {
-  router.push(`/article/${articleId}`)
+  router.push(`/articles/public/${articleId}`)
 }
 
 // 初始化热力图
@@ -325,28 +325,104 @@ onMounted(() => {
   position: relative;
   overflow: hidden;
   margin-bottom: 0;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
   width: 100%;
   border-radius: 0;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.1),
+    0 1px 1px rgba(255, 255, 255, 0.1);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.profile-hero:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 15px 35px rgba(0,0,0,0.12);
+.profile-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(
+      circle at 0% 0%,
+      rgba(var(--primary-rgb), 0.15) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 100% 100%,
+      rgba(var(--primary-rgb), 0.15) 0%,
+      transparent 50%
+    );
+  opacity: 0.8;
+  z-index: 0;
+}
+
+.profile-hero::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
 }
 
 .profile-cover {
   height: 360px;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--primary-rgb), 0.7) 0%,
+    rgba(var(--primary-rgb), 0.3) 100%
+  );
   position: relative;
-  transition: all 0.3s ease;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.profile-cover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(255, 255, 255, 0.2) 0%,
+      transparent 70%
+    ),
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.1) 0%,
+      rgba(255, 255, 255, 0.1) 1px,
+      transparent 1px,
+      transparent 8px
+    );
+  opacity: 0.8;
+  mix-blend-mode: overlay;
+  animation: backgroundShift 20s linear infinite;
+}
+
+@keyframes backgroundShift {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 100% 100%;
+  }
 }
 
 .cover-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.5) 100%);
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 0.6) 100%
+  );
+  backdrop-filter: blur(3px);
 }
 
 .profile-main {
@@ -362,68 +438,157 @@ onMounted(() => {
   margin-right: auto;
   width: 100%;
   box-sizing: border-box;
+  animation: slideUp 1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .profile-avatar {
   flex-shrink: 0;
+  position: relative;
+  transform-style: preserve-3d;
+  perspective: 1000px;
 }
 
 .avatar-image {
   width: 160px !important;
   height: 160px !important;
   font-size: 48px !important;
-  border: 6px solid #fff;
-  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-  transition: transform 0.3s ease;
+  border: 4px solid rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.2),
+    0 0 0 8px rgba(255, 255, 255, 0.1);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  z-index: 2;
+  transform: translateZ(50px);
+}
+
+.avatar-image::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: linear-gradient(
+    45deg,
+    var(--primary-light),
+    var(--primary-dark)
+  );
+  opacity: 0;
+  z-index: -1;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.avatar-image::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(var(--primary-rgb), 0.3),
+    transparent 70%
+  );
+  z-index: -1;
+  opacity: 0;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .avatar-image:hover {
-  transform: scale(1.05);
+  transform: translateZ(60px) rotateY(-15deg);
+  box-shadow: 
+    20px 20px 60px rgba(0, 0, 0, 0.2),
+    0 0 0 12px rgba(255, 255, 255, 0.2);
+}
+
+.avatar-image:hover::before {
+  opacity: 1;
+  inset: -4px;
+}
+
+.avatar-image:hover::after {
+  opacity: 1;
+  transform: scale(1.2);
 }
 
 .user-status {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
-  padding: 4px 12px;
+  bottom: -12px;
+  right: -12px;
+  padding: 6px 16px;
   border-radius: 20px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   background: rgba(239, 68, 68, 0.9);
   color: white;
   display: flex;
   align-items: center;
-  gap: 5px;
-  backdrop-filter: blur(4px);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  transition: all 0.3s ease;
+  gap: 8px;
+  backdrop-filter: blur(10px);
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+  transform: translateZ(70px);
+}
+
+.user-status::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.2));
+  border-radius: 20px;
+  z-index: -1;
 }
 
 .status-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background-color: #fff;
   display: inline-block;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+  position: relative;
+}
+
+.status-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  animation: ripple 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 .user-status.online {
-  background: rgba(16, 185, 129, 0.9);
+  background: rgba(16, 185, 129, 0.95);
 }
 
-.user-status.online .status-dot {
-  animation: pulse 1.5s infinite;
+.user-status:hover {
+  transform: translateZ(70px) scale(1.05);
+  box-shadow: 
+    0 8px 30px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
-@keyframes pulse {
+@keyframes ripple {
   0% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
-  }
-  70% {
-    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0);
+    transform: scale(0.8);
+    opacity: 1;
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+@keyframes slideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
