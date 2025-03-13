@@ -690,6 +690,19 @@ onMounted(() => {
 .markdown-content :deep(steam-game-block) {
   display: block;
   width: 100%;
-  margin: 2rem 0;
+  margin: 1.5rem 0;
+}
+
+.markdown-content :deep(.steam-game-wrapper) {
+  position: relative;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.markdown-content :deep(.steam-game-wrapper:hover) {
+  background: rgba(0, 0, 0, 0.15);
 }
 </style> 

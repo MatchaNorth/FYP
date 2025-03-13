@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 import os
 from werkzeug.utils import secure_filename
 from sqlalchemy.sql import func
+from routes.proxy import proxy_bp
 
 # 创建Flask应用
 app = Flask(__name__)
@@ -1162,6 +1163,9 @@ def not_found_error(error):
         'code': 404,
         'message': '资源不存在'
     }), 404
+
+# 注册代理路由
+app.register_blueprint(proxy_bp, url_prefix='/api/proxy')
 
 # 初始化数据库
 with app.app_context():
