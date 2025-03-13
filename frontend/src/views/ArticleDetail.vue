@@ -21,9 +21,8 @@
             </div>
           </div>
         </div>
-        <div class="article-body markdown-content" v-html="renderedContent"></div>
+        <div class="article-body markdown-content" v-html="renderedContent" ref="contentRef"></div>
       </div>
-      <SteamGameBlock v-if="false" />
 
       <!-- 右侧作者信息和操作 -->
       <div class="article-sidebar">
@@ -73,7 +72,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
@@ -81,6 +80,7 @@ import HeadMenu from '../components/HeadMenu.vue'
 import { Calendar, View, Star, EditPen, Delete } from '@element-plus/icons-vue'
 import SteamGameBlock from '../components/SteamGameBlock.vue'
 import md from '../utils/markdownRenderer'
+import { createApp } from 'vue'
 
 // 定义组件
 const components = {
@@ -92,11 +92,44 @@ const router = useRouter()
 const article = ref({})
 const authorStats = ref({})
 const isLiked = ref(false)
+const contentRef = ref(null)
 
 // 渲染Markdown内容
 const renderedContent = computed(() => {
-  return md.render(article.value.content || '')
+  console.log('渲染文章内容...')
+  const content = md.render(article.value.content || '')
+  console.log('渲染后的内容:', content)
+  return content
 })
+
+// 处理动态组件的挂载
+const mountComponents = async () => {
+  await nextTick()
+  if (contentRef.value) {
+    console.log('开始挂载组件...')
+    const steamGameBlocks = contentRef.value.querySelectorAll('steam-game-block')
+    console.log('找到 steam-game-block 元素:', steamGameBlocks)
+    console.log('元素数量:', steamGameBlocks.length)
+    
+    steamGameBlocks.forEach((block, index) => {
+      console.log(`检查第 ${index + 1} 个元素:`, block.outerHTML)
+      const gameUrl = block.getAttribute('gameurl')
+      console.log('获取到的 URL:', gameUrl)
+      
+      if (gameUrl) {
+        const app = createApp(SteamGameBlock, { gameurl: gameUrl })
+        app.mount(block)
+        console.log(`成功挂载组件 ${index + 1}`)
+      }
+    })
+  }
+}
+
+// 监听文章内容变化
+watch(() => article.value.content, async () => {
+  console.log('文章内容已更新')
+  await mountComponents()
+}, { immediate: true })
 
 // 格式化日期
 const formatDate = (dateString) => {
@@ -126,6 +159,8 @@ const fetchArticle = async () => {
       if (token) {
         checkLikeStatus()
       }
+      // 在文章内容更新后挂载组件
+      await mountComponents()
     }
   } catch (error) {
     console.error('获取文章详情失败:', error)
@@ -650,5 +685,11 @@ onMounted(() => {
 .stat-item i {
   font-size: 16px;
   color: var(--primary);
+}
+
+.markdown-content :deep(steam-game-block) {
+  display: block;
+  width: 100%;
+  margin: 2rem 0;
 }
 </style> 

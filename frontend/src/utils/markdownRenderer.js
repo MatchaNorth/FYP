@@ -69,7 +69,7 @@ md.use((md) => {
     const token = tokens[idx]
     if (token.info.trim() === 'steam-game') {
       const url = token.content.trim()
-      return `<steam-game-block :gameurl="'${url}'"></steam-game-block>`
+      return `<div class="steam-game-wrapper"><steam-game-block gameurl="${url}"></steam-game-block></div>`
     }
     return defaultFence(tokens, idx, options, env, self)
   }
