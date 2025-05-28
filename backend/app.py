@@ -23,7 +23,8 @@ CORS(app, resources={
     r"/*": {
         "origins": "*",
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": False
     }
 })
 
@@ -177,6 +178,41 @@ class Article(db.Model):
             'is_hidden': self.is_hidden,
             'is_pinned': self.is_pinned
         }
+
+# 评论模型
+class Comment(db.Model):
+    __tablename__ = 'comments'
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    article_id = db.Column(db.Integer, db.ForeignKey('articles.id'), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('comments.id'), nullable=True)
+    floor = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        user = User.query.get(self.user_id)
+        return {
+            'id': self.id,
+            'content': self.content,
+            'user_id': self.user_id,
+            'nickname': user.nickname if user else '',
+            'avatar': user.avatar if user else '',
+            'article_id': self.article_id,
+            'parent_id': self.parent_id,
+            'floor': self.floor,
+            'created_at': self.created_at.isoformat() if self.created_at else '',
+            'updated_at': self.updated_at.isoformat() if self.updated_at else ''
+        }
+
+# 评论点赞记录模型
+class CommentLike(db.Model):
+    __tablename__ = 'comment_likes'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    comment_id = db.Column(db.Integer, db.ForeignKey('comments.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # 路由
 @app.route('/api/user/profile', methods=['GET'])
@@ -1721,6 +1757,77 @@ def unpin_article(article_id):
     except Exception as e:
         print(f"取消置顶文章错误: {str(e)}")
         return jsonify({'message': '操作失败'}), 500
+
+@app.route('/api/articles/<int:article_id>/comments', methods=['GET'])
+def get_article_comments(article_id):
+    def build_comment_tree(comments, parent_id=None):
+        tree = []
+        for comment in comments:
+            if comment.parent_id == parent_id:
+                item = comment.to_dict()
+                item['children'] = build_comment_tree(comments, comment.id)
+                tree.append(item)
+        return tree
+    comments = Comment.query.filter_by(article_id=article_id).order_by(Comment.floor.asc()).all()
+    return jsonify({
+        'code': 200,
+        'message': '获取成功',
+        'data': build_comment_tree(comments)
+    })
+
+@app.route('/api/articles/<int:article_id>/comments', methods=['POST'])
+@jwt_required()
+def post_article_comment(article_id):
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    if not user:
+        return jsonify({'message': '用户不存在'}), 404
+    data = request.get_json()
+    content = data.get('content')
+    parent_id = data.get('parent_id')
+    if not content:
+        return jsonify({'message': '评论内容不能为空'}), 400
+    
+    # 获取当前文章最新的楼层号（包括子评论）
+    latest_floor = db.session.query(db.func.max(Comment.floor)).filter_by(article_id=article_id).scalar() or 0
+    # 新评论的楼层号 = 最新楼层号 + 1
+    floor = latest_floor + 1
+    
+    comment = Comment(
+        content=content,
+        user_id=user.id,
+        article_id=article_id,
+        parent_id=parent_id,
+        floor=floor
+    )
+    db.session.add(comment)
+    db.session.commit()
+    return jsonify({'code': 200, 'message': '评论成功', 'data': comment.to_dict()})
+
+@app.route('/api/comments/<int:comment_id>/like', methods=['POST'])
+@jwt_required()
+def like_comment(comment_id):
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    if not user:
+        return jsonify({'message': '用户不存在'}), 404
+    like = CommentLike.query.filter_by(user_id=user.id, comment_id=comment_id).first()
+    if like:
+        db.session.delete(like)
+        db.session.commit()
+        return jsonify({'code': 200, 'message': '取消点赞'})
+    else:
+        new_like = CommentLike(user_id=user.id, comment_id=comment_id)
+        db.session.add(new_like)
+        db.session.commit()
+        return jsonify({'code': 200, 'message': '点赞成功'})
+
+@app.route('/api/comments/<int:comment_id>/like', methods=['GET'])
+@jwt_required()
+def get_comment_like_status(comment_id):
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    if not user:
+        return jsonify({'message': '用户不存在'}), 404
+    like = CommentLike.query.filter_by(user_id=user.id, comment_id=comment_id).first()
+    return jsonify({'code': 200, 'liked': bool(like)})
 
 # 全局错误处理器
 @app.errorhandler(404)

@@ -72,6 +72,15 @@
         </div>
       </div>
     </div>
+    <!-- 评论区 -->
+    <div class="article-comments">
+      <Comment 
+        :comments="comments" 
+        :article-id="article.id" 
+        :show-input="true" 
+        @refresh="fetchComments" 
+      />
+    </div>
   </div>
 </template>
 
@@ -85,6 +94,7 @@ import { Calendar, View, Star, EditPen, Delete } from '@element-plus/icons-vue'
 import SteamGameBlock from '../components/SteamGameBlock.vue'
 import md from '../utils/markdownRenderer'
 import { createApp } from 'vue'
+import Comment from '../components/Comment.vue'
 
 // 定义组件
 const components = {
@@ -98,6 +108,7 @@ const authorStats = ref({})
 const isLiked = ref(false)
 const contentRef = ref(null)
 const isBanned = ref(false)
+const comments = ref([])
 
 // 渲染Markdown内容
 const renderedContent = computed(() => {
@@ -156,7 +167,6 @@ const isAuthor = computed(() => {
 const fetchArticle = async () => {
   try {
     const response = await axios.get(`http://localhost:5000/api/articles/public/${route.params.id}`)
-    
     if (response.data.code === 200) {
       article.value = response.data.data
       fetchAuthorStats()
@@ -167,6 +177,8 @@ const fetchArticle = async () => {
       }
       // 在文章内容更新后挂载组件
       await mountComponents()
+      // 文章数据获取成功后再拉取评论
+      fetchComments()
     }
   } catch (error) {
     console.error('获取文章详情失败:', error)
@@ -289,6 +301,18 @@ const handleDelete = async () => {
 // 跳转到用户资料页
 const goToUserProfile = (userId) => {
   router.push(`/user/${userId}`)
+}
+
+const fetchComments = async () => {
+  if (!article.value.id) return
+  try {
+    const res = await axios.get(`http://localhost:5000/api/articles/${article.value.id}/comments`)
+    if (res.data.code === 200) {
+      comments.value = res.data.data
+    }
+  } catch (e) {
+    console.error('获取评论失败', e)
+  }
 }
 
 onMounted(() => {
@@ -746,5 +770,12 @@ onMounted(() => {
 
 .markdown-content :deep(.steam-game-wrapper:hover) {
   background: rgba(0, 0, 0, 0.15);
+}
+
+.article-comments {
+  margin: 40px 0 0 0;
+  background: var(--card-bg);
+  border-radius: 16px;
+  padding: 32px;
 }
 </style> 
