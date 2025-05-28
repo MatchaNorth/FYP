@@ -53,7 +53,11 @@
         </div>
 
         <div class="action-card glass-card">
-          <button class="action-btn like-btn" :class="{ active: isLiked }" @click="handleLike">
+          <button 
+            class="action-btn like-btn" 
+            :class="{ active: isLiked, disabled: isBanned }" 
+            @click="handleLike"
+          >
             <el-icon><Star /></el-icon>
             <span>{{ isLiked ? '已点赞' : '点赞' }}</span>
           </button>
@@ -93,6 +97,7 @@ const article = ref({})
 const authorStats = ref({})
 const isLiked = ref(false)
 const contentRef = ref(null)
+const isBanned = ref(false)
 
 // 渲染Markdown内容
 const renderedContent = computed(() => {
@@ -158,6 +163,7 @@ const fetchArticle = async () => {
       const token = localStorage.getItem('token')
       if (token) {
         checkLikeStatus()
+        checkUserStatus()
       }
       // 在文章内容更新后挂载组件
       await mountComponents()
@@ -199,12 +205,38 @@ const checkLikeStatus = async () => {
   }
 }
 
+// 检查用户状态
+const checkUserStatus = async () => {
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    
+    const response = await axios.get('http://localhost:5000/api/user/profile', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    
+    if (response.data.code === 200) {
+      isBanned.value = response.data.data.is_banned
+    }
+  } catch (error) {
+    console.error('获取用户状态失败:', error)
+  }
+}
+
 // 处理点赞
 const handleLike = async () => {
   try {
     const token = localStorage.getItem('token')
     if (!token) {
       ElMessage.warning('请先登录后再点赞')
+      return
+    }
+
+    if (isBanned.value) {
+      ElMessageBox.alert('您的账号已被封禁，无法进行点赞操作', '提示', {
+        confirmButtonText: '确定',
+        type: 'warning'
+      })
       return
     }
     
@@ -469,6 +501,16 @@ onMounted(() => {
 .delete-btn:hover {
   background: #EF4444;
   color: white;
+}
+
+.action-btn.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.action-btn.disabled:hover {
+  background: rgba(var(--primary-rgb), 0.1);
+  color: var(--primary);
 }
 
 /* 响应式布局 */

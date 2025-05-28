@@ -21,7 +21,12 @@
                     clearable
                   />
                 </div>
-                <el-button type="primary" @click="createNewArticle">
+                <el-button 
+                  type="primary" 
+                  @click="createNewArticle"
+                  :disabled="isBanned"
+                  :class="{ 'disabled': isBanned }"
+                >
                   <i class="el-icon-plus"></i>
                   写文章
                 </el-button>
@@ -225,6 +230,7 @@ const previewHtml = ref('')
 const saving = ref(false)
 const searchQuery = ref('')
 const markdownInput = ref(null)
+const isBanned = ref(false)
 
 // 编辑历史管理
 const history = ref({
@@ -307,6 +313,13 @@ const fetchArticles = async () => {
 
 // 创建新文章
 const createNewArticle = () => {
+  if (isBanned.value) {
+    ElMessageBox.alert('您的账号已被封禁，无法发布文章', '提示', {
+      confirmButtonText: '确定',
+      type: 'warning'
+    })
+    return
+  }
   currentArticle.value = {
     id: null,
     title: '',
@@ -510,7 +523,20 @@ const insertMarkdown = async (type) => {
   updatePreview()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 获取用户封禁状态
+  try {
+    const token = localStorage.getItem('token')
+    const response = await axios.get('http://localhost:5000/api/user/profile', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (response.data.code === 200) {
+      isBanned.value = response.data.data.is_banned
+    }
+  } catch (error) {
+    console.error('获取用户信息失败:', error)
+  }
+  
   fetchArticles()
 })
 </script>
@@ -900,5 +926,10 @@ onMounted(() => {
 
 :deep(.el-empty) {
   padding: 40px 0;
+}
+
+.el-button.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style> 

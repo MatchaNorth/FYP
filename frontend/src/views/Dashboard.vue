@@ -212,9 +212,12 @@
               </div>
               <div class="info-group">
                 <label>账号状态</label>
-                <el-tag size="small" type="success">
-                  <i class="el-icon-check"></i>
-                  <span>正常使用中</span>
+                <el-tag 
+                  size="small" 
+                  :type="isBanned ? 'danger' : 'success'"
+                >
+                  <i :class="isBanned ? 'el-icon-warning' : 'el-icon-check'"></i>
+                  <span>{{ isBanned ? '已封禁' : '正常使用中' }}</span>
                 </el-tag>
               </div>
             </div>
@@ -474,6 +477,7 @@ const isUpdating = ref(false)
 const heyboxId = ref('')
 const isHeyboxBound = ref(false)
 const showUnbindText = ref(false)
+const isBanned = ref(false)
 
 const recentActivities = ref([])
 
@@ -875,6 +879,7 @@ onMounted(async () => {
     username.value = userData.username
     nickname.value = userData.nickname || userData.username
     userRole.value = roleResponse.data.data.role
+    isBanned.value = userData.is_banned // 添加封禁状态
     // 设置头像和小黑盒信息
     if (userData.avatar) {
       avatarUrl.value = userData.avatar
@@ -1755,52 +1760,44 @@ const handleAvatarUpload = async () => {
 }
 
 .info-group .el-tag {
-  background: linear-gradient(135deg, #10B981 0%, #34D399 100%);
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.info-group .el-tag.el-tag--danger {
+  background: linear-gradient(135deg, #EF4444 0%, #F87171 100%);
+  border: none;
+  color: white;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+.info-group .el-tag.el-tag--success {
+  background: linear-gradient(135deg, #10B981 0%, #34D399 100%);
+  border: none;
   color: white;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.info-group .el-tag::before {
-  content: '';
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #34D399 0%, #10B981 100%);
-  top: 0;
-  left: 0;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.info-group:hover .el-tag {
-  transform: scale(1.05);
-  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
-}
-
-.info-group:hover .el-tag::before {
-  opacity: 1;
-}
-
-.info-group .el-tag span {
-  position: relative;
-  z-index: 1;
-  color: white;
-  font-size: 14px;
-  background: none;
-  -webkit-text-fill-color: white;
 }
 
 .info-group .el-tag i {
-  margin-right: 6px;
   font-size: 14px;
+}
+
+.info-group .el-tag.el-tag--danger:hover {
+  background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
+  transform: translateY(-2px);
+}
+
+.info-group .el-tag.el-tag--success:hover {
+  background: linear-gradient(135deg, #059669 0%, #10B981 100%);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
+  transform: translateY(-2px);
 }
 
 /* 安全设置部分 */
@@ -2554,5 +2551,39 @@ button {
 
 button:hover {
   opacity: 0.9;
+}
+
+.write-article-btn.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.el-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.el-tag.el-tag--danger {
+  background: linear-gradient(135deg, #EF4444 0%, #F87171 100%);
+  border: none;
+  color: white;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+.el-tag.el-tag--success {
+  background: linear-gradient(135deg, #10B981 0%, #34D399 100%);
+  border: none;
+  color: white;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.el-tag i {
+  font-size: 14px;
 }
 </style> 
