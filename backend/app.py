@@ -20,12 +20,10 @@ app = Flask(__name__)
 
 # 配置CORS
 CORS(app, resources={
-    r"/api/*": {
-        "origins": ["http://localhost:5173"],
+    r"/*": {
+        "origins": "*",
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-        "supports_credentials": True,
-        "expose_headers": ["Content-Type", "Authorization"]
+        "allow_headers": ["Content-Type", "Authorization"]
     }
 })
 
@@ -64,7 +62,7 @@ class UserActivity(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     activity_type = db.Column(db.String(50), nullable=False)  # 活动类型：登录、注册、修改密码等
     description = db.Column(db.String(255), nullable=False)   # 活动描述
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_cn_datetime())
     
     def to_dict(self):
         return {
@@ -82,6 +80,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     nickname = db.Column(db.String(80))
     password = db.Column(db.String(120), nullable=False)
+    role = db.Column(db.String(20), default='user')  # 添加role字段
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
     # 小黑盒相关字段
@@ -91,6 +90,7 @@ class User(db.Model):
     heybox_profile = db.Column(db.String(255))  # 小黑盒个人主页URL
     articles = db.relationship('Article', backref='author', lazy=True)
     avatar = db.Column(db.String(255))  # 用户头像URL
+    is_banned = db.Column(db.Boolean, default=False)
 
     def __init__(self, username, password, nickname=None):
         self.username = username
@@ -102,6 +102,7 @@ class User(db.Model):
             'id': self.id,
             'username': self.username,
             'nickname': self.nickname or self.username,
+            'role': self.role,  # 添加role到返回数据中
             'created_at': self.created_at.isoformat(),
             'last_login': self.last_login.isoformat() if self.last_login else None,
             'days_since_registration': (datetime.utcnow() - self.created_at).days,
@@ -109,7 +110,8 @@ class User(db.Model):
             'heybox_nickname': self.heybox_nickname,
             'heybox_avatar': self.heybox_avatar,
             'heybox_profile': self.heybox_profile,
-            'avatar': self.avatar
+            'avatar': self.avatar,
+            'is_banned': self.is_banned
         }
 
 # 用户点赞记录模型
@@ -153,6 +155,8 @@ class Article(db.Model):
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     views = db.Column(db.Integer, default=0)
     likes = db.Column(db.Integer, default=0)
+    is_hidden = db.Column(db.Boolean, default=False)
+    is_pinned = db.Column(db.Boolean, default=False)
     
     def to_dict(self):
         author = User.query.get(self.author_id)
@@ -169,7 +173,9 @@ class Article(db.Model):
             'author_nickname': author.nickname,
             'author_avatar': author.avatar,
             'views': self.views,
-            'likes': self.likes
+            'likes': self.likes,
+            'is_hidden': self.is_hidden,
+            'is_pinned': self.is_pinned
         }
 
 # 路由
@@ -665,7 +671,6 @@ def delete_article(article_id):
     try:
         current_user_id = get_jwt_identity()
         article = Article.query.get_or_404(article_id)
-        
         # 检查是否为作者
         if article.author_id != current_user_id:
             return jsonify({
@@ -1155,6 +1160,567 @@ def get_user_activity_data(user_id):
             'code': 500,
             'message': str(e)
         }), 500
+
+@app.route('/api/articles/recommendations', methods=['GET'])
+@jwt_required()
+def get_recommendations():
+    try:
+        print("开始获取推荐文章...")
+        current_user = get_jwt_identity()
+        print(f"当前用户: {current_user}")
+        
+        user = User.query.filter_by(username=current_user).first()
+        if not user:
+            print(f"用户不存在: {current_user}")
+            return jsonify({'message': '用户不存在'}), 404
+            
+        print(f"找到用户: {user.username}, ID: {user.id}")
+            
+        # 获取用户最近30天的活动数据
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        print(f"查询时间范围: {thirty_days_ago} 至今")
+        
+        try:
+            # 1. 获取用户浏览记录
+            viewed_articles = ArticleView.query.filter(
+                ArticleView.ip_address == request.remote_addr,  # 使用IP地址而不是user_id
+                ArticleView.created_at >= thirty_days_ago
+            ).all()
+            print(f"找到 {len(viewed_articles)} 条浏览记录")
+        except Exception as e:
+            print(f"获取浏览记录时出错: {str(e)}")
+            viewed_articles = []
+        
+        try:
+            # 2. 获取用户点赞记录
+            liked_articles = ArticleLike.query.filter(
+                ArticleLike.user_id == user.id,  # 使用正确的user_id
+                ArticleLike.created_at >= thirty_days_ago
+            ).all()
+            print(f"找到 {len(liked_articles)} 条点赞记录")
+        except Exception as e:
+            print(f"获取点赞记录时出错: {str(e)}")
+            liked_articles = []
+        
+        try:
+            # 3. 获取用户发布的文章
+            user_articles = Article.query.filter(
+                Article.author_id == user.id,
+                Article.created_at >= thirty_days_ago
+            ).all()
+            print(f"找到 {len(user_articles)} 篇用户文章")
+        except Exception as e:
+            print(f"获取用户文章时出错: {str(e)}")
+            user_articles = []
+        
+        try:
+            # 4. 获取所有可推荐的文章（排除用户自己的文章）
+            all_articles = Article.query.filter(
+                Article.status == 'published',
+                Article.author_id != user.id
+            ).order_by(Article.created_at.desc()).all()  # 添加时间排序
+            print(f"找到 {len(all_articles)} 篇可推荐文章")
+        except Exception as e:
+            print(f"获取可推荐文章时出错: {str(e)}")
+            all_articles = []
+        
+        # 计算每篇文章的推荐权重
+        recommendations = []
+        print("开始计算推荐权重...")
+        
+        for article in all_articles:
+            try:
+                weight = 0
+                reasons = []
+                
+                # 1. 基础权重：文章热度
+                views_weight = (article.views or 0) * 0.3
+                likes_weight = (article.likes or 0) * 0.7
+                base_weight = views_weight + likes_weight
+                weight += base_weight
+                
+                if article.views > 100:
+                    reasons.append({
+                        'type': 'hot',
+                        'text': f'热门文章，已有 {article.views} 次阅读'
+                    })
+                if article.likes > 10:
+                    reasons.append({
+                        'type': 'popular',
+                        'text': f'广受欢迎，获得 {article.likes} 个赞'
+                    })
+                
+                # 2. 时间衰减因子
+                days_old = (datetime.utcnow() - article.created_at).days
+                time_factor = 1 / (1 + days_old * 0.1)
+                weight *= time_factor
+                
+                if days_old <= 1:
+                    reasons.append({
+                        'type': 'new',
+                        'text': '新鲜出炉'
+                    })
+                elif days_old <= 3:
+                    reasons.append({
+                        'type': 'recent',
+                        'text': '最近发布'
+                    })
+                
+                # 3. 用户行为权重
+                # 3.1 浏览记录
+                for viewed in viewed_articles:
+                    if viewed.article_id != article.id:
+                        weight += 5
+                        reasons.append({
+                            'type': 'interest',
+                            'text': '根据您的浏览历史推荐'
+                        })
+                        break
+                
+                # 3.2 点赞记录
+                for liked in liked_articles:
+                    if liked.article_id != article.id:
+                        weight += 10
+                        reasons.append({
+                            'type': 'preference',
+                            'text': '根据您的点赞偏好推荐'
+                        })
+                        break
+                
+                # 3.3 发布记录
+                for user_article in user_articles:
+                    if user_article.id != article.id:
+                        weight += 15
+                        reasons.append({
+                            'type': 'similar',
+                            'text': '与您发布的内容相关'
+                        })
+                        break
+                
+                # 4. 作者权重
+                author = User.query.get(article.author_id)
+                if author:
+                    author_articles_count = Article.query.filter_by(author_id=author.id).count()
+                    if author_articles_count > 10:
+                        weight *= 1.2
+                        reasons.append({
+                            'type': 'author',
+                            'text': '来自高产作者'
+                        })
+                
+                # 计算最终推荐百分比（归一化到0-100）
+                if weight > 0:
+                    recommendations.append({
+                        'article_id': article.id,
+                        'title': article.title,
+                        'author': author.username if author else '未知作者',
+                        'author_nickname': author.nickname if author else None,
+                        'created_at': article.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                        'views': article.views or 0,
+                        'likes': article.likes or 0,
+                        'weight': min(100, weight),
+                        'reasons': reasons
+                    })
+            except Exception as e:
+                print(f"处理文章 {article.id} 时出错: {str(e)}")
+                continue
+        
+        # 按权重排序
+        recommendations.sort(key=lambda x: x['weight'], reverse=True)
+        print(f"生成 {len(recommendations)} 条推荐")
+        
+        # 只返回前10个推荐
+        top_recommendations = recommendations[:10]
+        print(f"返回前 {len(top_recommendations)} 条推荐")
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取推荐成功',
+            'data': top_recommendations
+        })
+        
+    except Exception as e:
+        print(f"获取文章推荐错误: {str(e)}")
+        import traceback
+        print(f"错误堆栈: {traceback.format_exc()}")
+        return jsonify({'message': '获取推荐失败'}), 500
+
+@app.route('/api/user/role', methods=['GET'])
+@jwt_required()
+def get_user_role():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': {
+                'role': user.role
+            }
+        })
+    except Exception as e:
+        print(f"获取用户角色错误: {str(e)}")
+        return jsonify({'message': '获取用户角色失败'}), 500
+
+@app.route('/api/admin/stats', methods=['GET'])
+@jwt_required()
+def get_admin_stats():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user or user.role != 'admin':
+            return jsonify({'message': '没有权限访问'}), 403
+            
+        # 获取统计数据
+        total_users = User.query.count()
+        total_articles = Article.query.count()
+        total_views = db.session.query(func.sum(Article.views)).scalar() or 0
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': {
+                'totalUsers': total_users,
+                'totalArticles': total_articles,
+                'totalViews': total_views
+            }
+        })
+    except Exception as e:
+        print(f"获取管理员统计数据错误: {str(e)}")
+        return jsonify({'message': '获取统计数据失败'}), 500
+
+@app.route('/api/admin/users', methods=['GET'])
+@jwt_required()
+def get_admin_users():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user or user.role != 'admin':
+            return jsonify({'message': '没有权限访问'}), 403
+            
+        # 获取所有用户信息
+        users = User.query.all()
+        user_list = []
+        
+        for user in users:
+            # 获取用户的文章统计
+            articles = Article.query.filter_by(author_id=user.id).all()
+            total_likes = sum(article.likes or 0 for article in articles)
+            total_views = sum(article.views or 0 for article in articles)
+            
+            user_list.append({
+                'id': user.id,
+                'username': user.username,
+                'nickname': user.nickname or user.username,
+                'created_at': user.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'last_login': user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else '从未登录',
+                'article_count': len(articles),
+                'total_likes': total_likes,
+                'total_views': total_views,
+                'role': user.role,
+                'is_banned': user.is_banned if hasattr(user, 'is_banned') else False
+            })
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': user_list
+        })
+    except Exception as e:
+        print(f"获取用户列表错误: {str(e)}")
+        return jsonify({'message': '获取用户列表失败'}), 500
+
+@app.route('/api/admin/articles', methods=['GET'])
+@jwt_required()
+def get_admin_articles():
+    try:
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        
+        if not user or user.role != 'admin':
+            return jsonify({'message': '没有权限访问'}), 403
+            
+        # 获取所有文章信息
+        articles = Article.query.all()
+        article_list = []
+        
+        for article in articles:
+            author = User.query.get(article.author_id)
+            # 获取评论数（如果有评论表的话）
+            comment_count = 0  # TODO: 实现评论统计
+            
+            article_list.append({
+                'id': article.id,
+                'title': article.title,
+                'author': author.username if author else '未知作者',
+                'created_at': article.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'updated_at': article.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'likes': article.likes or 0,
+                'views': article.views or 0,
+                'comments': comment_count,
+                'is_hidden': article.is_hidden if hasattr(article, 'is_hidden') else False,
+                'is_pinned': article.is_pinned if hasattr(article, 'is_pinned') else False
+            })
+        
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': article_list
+        })
+    except Exception as e:
+        print(f"获取文章列表错误: {str(e)}")
+        return jsonify({'message': '获取文章列表失败'}), 500
+
+@app.route('/api/admin/user/<int:user_id>/ban', methods=['POST'])
+@jwt_required()
+def ban_user(user_id):
+    try:
+        current_user = get_jwt_identity()
+        admin = User.query.filter_by(username=current_user).first()
+        
+        if not admin or admin.role != 'admin':
+            return jsonify({'message': '没有权限执行此操作'}), 403
+            
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        if user.role == 'admin':
+            return jsonify({'message': '不能封禁管理员账号'}), 400
+            
+        user.is_banned = True
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '封禁成功'
+        })
+    except Exception as e:
+        print(f"封禁用户错误: {str(e)}")
+        return jsonify({'message': '操作失败'}), 500
+
+@app.route('/api/admin/user/<int:user_id>/unban', methods=['POST'])
+@jwt_required()
+def unban_user(user_id):
+    try:
+        current_user = get_jwt_identity()
+        admin = User.query.filter_by(username=current_user).first()
+        
+        if not admin or admin.role != 'admin':
+            return jsonify({'message': '没有权限执行此操作'}), 403
+            
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        user.is_banned = False
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '解封成功'
+        })
+    except Exception as e:
+        print(f"解封用户错误: {str(e)}")
+        return jsonify({'message': '操作失败'}), 500
+
+@app.route('/api/admin/user/<int:user_id>/delete', methods=['DELETE'])
+@jwt_required()
+def delete_user(user_id):
+    try:
+        current_user = get_jwt_identity()
+        admin = User.query.filter_by(username=current_user).first()
+        
+        if not admin or admin.role != 'admin':
+            return jsonify({'message': '没有权限执行此操作'}), 403
+            
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        if user.role == 'admin':
+            return jsonify({'message': '不能删除管理员账号'}), 400
+            
+        # 删除用户的所有文章
+        Article.query.filter_by(author_id=user.id).delete()
+        # 删除用户
+        db.session.delete(user)
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '删除成功'
+        })
+    except Exception as e:
+        print(f"删除用户错误: {str(e)}")
+        return jsonify({'message': '操作失败'}), 500
+
+@app.route('/api/admin/user/<int:user_id>/promote', methods=['POST'])
+@jwt_required()
+def promote_user(user_id):
+    try:
+        current_user = get_jwt_identity()
+        admin = User.query.filter_by(username=current_user).first()
+        
+        if not admin or admin.role != 'admin':
+            return jsonify({'message': '没有权限执行此操作'}), 403
+            
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+            
+        if user.role == 'admin':
+            return jsonify({'message': '该用户已经是管理员'}), 400
+            
+        user.role = 'admin'
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '提升成功'
+        })
+    except Exception as e:
+        print(f"提升用户错误: {str(e)}")
+        return jsonify({'message': '操作失败'}), 500
+
+@app.route('/api/admin/article/<int:article_id>/hide', methods=['POST'])
+@jwt_required()
+def hide_article(article_id):
+    try:
+        current_user = get_jwt_identity()
+        admin = User.query.filter_by(username=current_user).first()
+        
+        if not admin or admin.role != 'admin':
+            return jsonify({'message': '没有权限执行此操作'}), 403
+            
+        article = Article.query.get(article_id)
+        if not article:
+            return jsonify({'message': '文章不存在'}), 404
+            
+        article.is_hidden = True
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '隐藏成功'
+        })
+    except Exception as e:
+        print(f"隐藏文章错误: {str(e)}")
+        return jsonify({'message': '操作失败'}), 500
+
+@app.route('/api/admin/article/<int:article_id>/show', methods=['POST'])
+@jwt_required()
+def show_article(article_id):
+    try:
+        current_user = get_jwt_identity()
+        admin = User.query.filter_by(username=current_user).first()
+        
+        if not admin or admin.role != 'admin':
+            return jsonify({'message': '没有权限执行此操作'}), 403
+            
+        article = Article.query.get(article_id)
+        if not article:
+            return jsonify({'message': '文章不存在'}), 404
+            
+        article.is_hidden = False
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '显示成功'
+        })
+    except Exception as e:
+        print(f"显示文章错误: {str(e)}")
+        return jsonify({'message': '操作失败'}), 500
+
+@app.route('/api/admin/article/<int:article_id>/delete', methods=['DELETE'])
+@jwt_required()
+def admin_delete_article(article_id):
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user or current_user.role != 'admin':
+        return jsonify({
+            'code': 403,
+            'message': '权限不足'
+        }), 403
+    
+    article = Article.query.get(article_id)
+    if not article:
+        return jsonify({
+            'code': 404,
+            'message': '文章不存在'
+        }), 404
+    
+    try:
+        db.session.delete(article)
+        db.session.commit()
+        return jsonify({
+            'code': 200,
+            'message': '文章删除成功'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'code': 500,
+            'message': '删除文章失败'
+        }), 500
+
+@app.route('/api/admin/article/<int:article_id>/pin', methods=['POST'])
+@jwt_required()
+def pin_article(article_id):
+    try:
+        current_user = get_jwt_identity()
+        admin = User.query.filter_by(username=current_user).first()
+        
+        if not admin or admin.role != 'admin':
+            return jsonify({'message': '没有权限执行此操作'}), 403
+            
+        article = Article.query.get(article_id)
+        if not article:
+            return jsonify({'message': '文章不存在'}), 404
+            
+        article.is_pinned = True
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '置顶成功'
+        })
+    except Exception as e:
+        print(f"置顶文章错误: {str(e)}")
+        return jsonify({'message': '操作失败'}), 500
+
+@app.route('/api/admin/article/<int:article_id>/unpin', methods=['POST'])
+@jwt_required()
+def unpin_article(article_id):
+    try:
+        current_user = get_jwt_identity()
+        admin = User.query.filter_by(username=current_user).first()
+        
+        if not admin or admin.role != 'admin':
+            return jsonify({'message': '没有权限执行此操作'}), 403
+            
+        article = Article.query.get(article_id)
+        if not article:
+            return jsonify({'message': '文章不存在'}), 404
+            
+        article.is_pinned = False
+        db.session.commit()
+        
+        return jsonify({
+            'code': 200,
+            'message': '取消置顶成功'
+        })
+    except Exception as e:
+        print(f"取消置顶文章错误: {str(e)}")
+        return jsonify({'message': '操作失败'}), 500
 
 # 全局错误处理器
 @app.errorhandler(404)

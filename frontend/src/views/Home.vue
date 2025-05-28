@@ -25,6 +25,13 @@
             >
               {{ filter.label }}
             </button>
+            <button 
+              class="filter-btn recommend-btn"
+              @click="showRecommendations = true"
+            >
+              <el-icon><Star /></el-icon>
+              为您推荐
+            </button>
           </div>
         </div>
       </header>
@@ -93,6 +100,17 @@
         </div>
       </main>
     </div>
+
+    <!-- 推荐文章对话框 -->
+    <el-dialog
+      v-model="showRecommendations"
+      title="为您推荐"
+      width="80%"
+      :close-on-click-modal="false"
+      class="recommendations-dialog"
+    >
+      <RecommendedArticles />
+    </el-dialog>
 </template>
 
 <script setup>
@@ -101,12 +119,14 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import HeadMenu from '../components/HeadMenu.vue'
+import RecommendedArticles from '../components/RecommendedArticles.vue'
 import { Search, Calendar, User, View, Star, Edit } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const articles = ref([])
 const searchQuery = ref('')
 const currentFilter = ref('all')
+const showRecommendations = ref(false)
 
 const filters = [
   { label: '全部', value: 'all' },
@@ -302,6 +322,24 @@ onMounted(() => {
   background: rgba(var(--primary-rgb), 0.15);
   border-color: rgba(var(--primary-rgb), 0.5);
   color: var(--primary);
+}
+
+.filter-btn.recommend-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  color: white;
+  border: none;
+}
+
+.filter-btn.recommend-btn:hover {
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
+  transform: translateY(-1px);
+}
+
+.filter-btn.recommend-btn .el-icon {
+  font-size: 16px;
 }
 
 .articles-container {
@@ -544,5 +582,24 @@ onMounted(() => {
 .create-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
+}
+
+/* 推荐文章对话框样式 */
+:deep(.recommendations-dialog) {
+  .el-dialog__body {
+    padding: 0;
+  }
+  
+  .el-dialog__header {
+    margin-right: 0;
+    padding: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .el-dialog__title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
 }
 </style> 

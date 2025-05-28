@@ -18,7 +18,7 @@
           </el-avatar>
           <div class="user-info" v-show="!isSidebarCollapsed">
             <h3>{{ nickname }}</h3>
-            <p>普通用户</p>
+            <p>{{ userRole === 'admin' ? '管理员' : '普通用户' }}</p>
           </div>
         </div>
         
@@ -46,6 +46,15 @@
           >
             <i class="el-icon-user"></i>
             <span v-show="!isSidebarCollapsed">个人资料</span>
+          </div>
+          <div 
+            v-if="userRole === 'admin'"
+            class="nav-item" 
+            :class="{ 'active': currentView === 'admin', 'collapsed': isSidebarCollapsed }"
+            @click="switchView('admin')"
+          >
+            <i class="el-icon-setting"></i>
+            <span v-show="!isSidebarCollapsed">管理系统</span>
           </div>
         </nav>
       </div>
@@ -272,6 +281,99 @@
             </div>
           </div>
         </div>
+
+        <!-- 管理系统页面 -->
+        <div v-else-if="currentView === 'admin'" class="admin-view" :class="{ 'fade-enter': viewTransition }">
+          <div class="admin-stats">
+            <div class="stat-card">
+              <h3>总用户数</h3>
+              <p>{{ adminStats.totalUsers }}</p>
+            </div>
+            <div class="stat-card">
+              <h3>总文章数</h3>
+              <p>{{ adminStats.totalArticles }}</p>
+            </div>
+          </div>
+
+          <div class="admin-section">
+            <h2>用户管理</h2>
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>用户名</th>
+                  <th>昵称</th>
+                  <th>注册时间</th>
+                  <th>最后登录</th>
+                  <th>文章数</th>
+                  <th>获赞数</th>
+                  <th>总浏览量</th>
+                  <th>角色</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="user in users" :key="user.id">
+                  <td>{{ user.username }}</td>
+                  <td>{{ user.nickname }}</td>
+                  <td>{{ user.created_at }}</td>
+                  <td>{{ user.last_login }}</td>
+                  <td>{{ user.article_count }}</td>
+                  <td>{{ user.total_likes }}</td>
+                  <td>{{ user.total_views }}</td>
+                  <td>{{ user.role === 'admin' ? '管理员' : '普通用户' }}</td>
+                  <td>{{ user.is_banned ? '已封禁' : '正常' }}</td>
+                  <td>
+                    <button v-if="!user.is_banned" @click="handleUserAction(user.id, 'ban')" class="btn-warning">封禁</button>
+                    <button v-else @click="handleUserAction(user.id, 'unban')" class="btn-success">解封</button>
+                    <button v-if="user.role !== 'admin'" @click="handleUserAction(user.id, 'promote')" class="btn-primary">提升为管理员</button>
+                    <button v-if="user.role !== 'admin'" @click="handleUserAction(user.id, 'delete')" class="btn-danger">删除</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="admin-section">
+            <h2>文章管理</h2>
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>标题</th>
+                  <th>作者</th>
+                  <th>发布时间</th>
+                  <th>最后修改</th>
+                  <th>获赞数</th>
+                  <th>浏览量</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="article in articles" :key="article.id">
+                  <td>{{ article.title }}</td>
+                  <td>{{ article.author }}</td>
+                  <td>{{ article.created_at }}</td>
+                  <td>{{ article.updated_at }}</td>
+                  <td>{{ article.likes }}</td>
+                  <td>{{ article.views }}</td>
+                  <td>
+                    <span v-if="article.is_hidden">已隐藏</span>
+                    <span v-else-if="article.is_pinned">已置顶</span>
+                    <span v-else>正常</span>
+                  </td>
+                  <td>
+                    <button v-if="!article.is_hidden" @click="handleArticleAction(article.id, 'hide')" class="btn-warning">隐藏</button>
+                    <button v-else @click="handleArticleAction(article.id, 'show')" class="btn-success">显示</button>
+                    <button v-if="!article.is_pinned" @click="handleArticleAction(article.id, 'pin')" class="btn-primary">置顶</button>
+                    <button v-else @click="handleArticleAction(article.id, 'unpin')" class="btn-info">取消置顶</button>
+                    <button @click="handleArticleAction(article.id, 'delete')" class="btn-danger">删除</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -358,6 +460,7 @@ import gsap from 'gsap'
 const router = useRouter()
 const username = ref('')
 const nickname = ref('')
+const userRole = ref('user')
 const registrationDate = ref('')
 const lastLoginTime = ref('首次登录')
 const avatarUrl = ref('')
@@ -386,10 +489,19 @@ const articleStats = ref({
   todayViews: 0
 })
 
+const adminStats = ref({
+  totalUsers: 0,
+  totalArticles: 0
+})
+
+const users = ref([])
+const articles = ref([])
+
 const viewTitles = {
   overview: '总览',
   articles: '文章管理',
-  profile: '个人资料'
+  profile: '个人资料',
+  admin: '管理系统'
 }
 
 // 主题切换
@@ -606,6 +718,140 @@ const fetchArticleStats = async () => {
   }
 }
 
+// 获取管理员统计数据
+const fetchAdminStats = async () => {
+  try {
+    const [statsRes, usersRes, articlesRes] = await Promise.all([
+      fetch('http://localhost:5000/api/admin/stats', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      }),
+      fetch('http://localhost:5000/api/admin/users', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      }),
+      fetch('http://localhost:5000/api/admin/articles', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+    ])
+
+    const statsData = await statsRes.json()
+    const usersData = await usersRes.json()
+    const articlesData = await articlesRes.json()
+
+    if (statsData.code === 200) {
+      adminStats.value = statsData.data
+    }
+    if (usersData.code === 200) {
+      users.value = usersData.data
+    }
+    if (articlesData.code === 200) {
+      articles.value = articlesData.data
+    }
+  } catch (error) {
+    console.error('获取管理数据失败:', error)
+  }
+}
+
+// 用户操作处理函数
+const handleUserAction = async (userId, action) => {
+  if (!confirm(`确定要${action === 'ban' ? '封禁' : action === 'unban' ? '解封' : action === 'delete' ? '删除' : '提升为管理员'}该用户吗？`)) {
+    return
+  }
+
+  try {
+    let url = ''
+    let method = 'POST'
+    
+    switch (action) {
+      case 'ban':
+        url = `http://localhost:5000/api/admin/user/${userId}/ban`
+        break
+      case 'unban':
+        url = `http://localhost:5000/api/admin/user/${userId}/unban`
+        break
+      case 'delete':
+        url = `http://localhost:5000/api/admin/user/${userId}/delete`
+        method = 'DELETE'
+        break
+      case 'promote':
+        url = `http://localhost:5000/api/admin/user/${userId}/promote`
+        break
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+
+    const data = await response.json()
+    if (data.code === 200) {
+      alert(data.message)
+      fetchAdminStats() // 刷新数据
+    } else {
+      alert(data.message || '操作失败')
+    }
+  } catch (error) {
+    console.error('操作失败:', error)
+    alert('操作失败')
+  }
+}
+
+// 文章操作处理函数
+const handleArticleAction = async (articleId, action) => {
+  if (!confirm(`确定要${action === 'hide' ? '隐藏' : action === 'show' ? '显示' : action === 'delete' ? '删除' : action === 'pin' ? '置顶' : '取消置顶'}该文章吗？`)) {
+    return
+  }
+
+  try {
+    let url = ''
+    let method = 'POST'
+    
+    switch (action) {
+      case 'hide':
+        url = `http://localhost:5000/api/admin/article/${articleId}/hide`
+        break
+      case 'show':
+        url = `http://localhost:5000/api/admin/article/${articleId}/show`
+        break
+      case 'delete':
+        url = `http://localhost:5000/api/admin/article/${articleId}/delete`
+        method = 'DELETE'
+        break
+      case 'pin':
+        url = `http://localhost:5000/api/admin/article/${articleId}/pin`
+        break
+      case 'unpin':
+        url = `http://localhost:5000/api/admin/article/${articleId}/unpin`
+        break
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+
+    const data = await response.json()
+    if (data.code === 200) {
+      alert(data.message)
+      fetchAdminStats() // 刷新数据
+    } else {
+      alert(data.message || '操作失败')
+    }
+  } catch (error) {
+    console.error('操作失败:', error)
+    alert('操作失败')
+  }
+}
+
 // 检查登录状态
 onMounted(async () => {
   const token = localStorage.getItem('token')
@@ -616,12 +862,19 @@ onMounted(async () => {
   
   // 获取用户详细信息
   try {
-    const response = await axios.get('http://localhost:5000/api/user/profile', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    const userData = response.data.data
+    const [profileResponse, roleResponse] = await Promise.all([
+      axios.get('http://localhost:5000/api/user/profile', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      }),
+      axios.get('http://localhost:5000/api/user/role', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+    ])
+    
+    const userData = profileResponse.data.data
     username.value = userData.username
     nickname.value = userData.nickname || userData.username
+    userRole.value = roleResponse.data.data.role
     // 设置头像和小黑盒信息
     if (userData.avatar) {
       avatarUrl.value = userData.avatar
@@ -653,6 +906,10 @@ onMounted(async () => {
       fetchUserActivities(),
       fetchArticleStats()
     ])
+
+    if (userRole.value === 'admin') {
+      await fetchAdminStats()
+    }
   } catch (error) {
     console.error('获取用户信息失败:', error)
     if (error.response?.status === 401) {
@@ -2193,5 +2450,109 @@ button:disabled {
 
 .back-home-btn i {
   font-size: 16px;
+}
+
+.admin-view {
+  animation: slideUp 0.6s ease-out;
+}
+
+.admin-stats {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.stat-card {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex: 1;
+}
+
+.stat-card h3 {
+  margin: 0;
+  color: #666;
+  font-size: 16px;
+}
+
+.stat-card p {
+  margin: 10px 0 0;
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+}
+
+.admin-section {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 30px;
+}
+
+.admin-section h2 {
+  margin: 0 0 20px;
+  color: #333;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.admin-table th {
+  background: #f5f5f5;
+  font-weight: 600;
+  color: #333;
+}
+
+.admin-table tr:hover {
+  background: #f9f9f9;
+}
+
+.btn-warning {
+  background: #ffa500;
+  color: white;
+}
+
+.btn-success {
+  background: #28a745;
+  color: white;
+}
+
+.btn-primary {
+  background: #007bff;
+  color: white;
+}
+
+.btn-info {
+  background: #17a2b8;
+  color: white;
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+button:hover {
+  opacity: 0.9;
 }
 </style> 

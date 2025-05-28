@@ -61,26 +61,32 @@ const fetchGameDetails = async () => {
       description.value = descriptionElement.textContent.trim()
     }
 
-    // 获取最新评分
+    // 获取最新评分并翻译
     const latestRatingElement = doc.querySelector('.game_review_summary')
     if (latestRatingElement) {
-      latest_rating.value = '近期评价：' + latestRatingElement.textContent.trim()
+      const ratingText = latestRatingElement.textContent.trim()
+      const translatedRating = translateRating(ratingText)
+      latest_rating.value = `近期评价：${translatedRating}`
     }
 
-    // 获取所有评分
+    // 获取所有评分并翻译
     const allRatingElements = doc.querySelectorAll('.game_review_summary')
     if (allRatingElements.length > 1) {
-      all_rating.value = '总体评价：' + allRatingElements[1].textContent.trim()
+      const ratingText = allRatingElements[1].textContent.trim()
+      const translatedRating = translateRating(ratingText)
+      all_rating.value = `总体评价：${translatedRating}`
     }
 
-    // 获取价格
+    // 获取价格并转换为人民币
     const priceElement = doc.querySelector('.game_purchase_discount')
     if (priceElement) {
-      price.value = priceElement.outerHTML.trim()
+      const priceHtml = priceElement.outerHTML.trim()
+      price.value = convertPriceToRMB(priceHtml)
     } else {
       const regularPriceElement = doc.querySelector('.game_purchase_price')
       if (regularPriceElement) {
-        price.value = regularPriceElement.outerHTML.trim()
+        const priceHtml = regularPriceElement.outerHTML.trim()
+        price.value = convertPriceToRMB(priceHtml)
       }
     }
   } catch (error) {
@@ -92,6 +98,52 @@ const fetchGameDetails = async () => {
     all_rating.value = '暂无评分'
     price.value = '获取失败'
   }
+}
+
+// 评分翻译函数
+const translateRating = (rating) => {
+  const ratingMap = {
+    'Overwhelmingly Positive': '好评如潮',
+    'Very Positive': '特别好评',
+    'Positive': '好评',
+    'Mostly Positive': '多半好评',
+    'Mixed': '褒贬不一',
+    'Mostly Negative': '多半差评',
+    'Negative': '差评',
+    'Very Negative': '特别差评',
+    'Overwhelmingly Negative': '差评如潮'
+  }
+  
+  for (const [eng, chn] of Object.entries(ratingMap)) {
+    if (rating.includes(eng)) {
+      return rating.replace(eng, chn)
+    }
+  }
+  return rating
+}
+
+// 价格转换函数
+const convertPriceToRMB = (priceHtml) => {
+  // 替换美元符号为人民币符号
+  priceHtml = priceHtml.replace(/\$/g, '¥')
+  
+  // 处理折扣价格
+  if (priceHtml.includes('discount_pct')) {
+    const discountMatch = priceHtml.match(/discount_pct[^>]*>([^<]+)/)
+    if (discountMatch) {
+      const discount = discountMatch[1]
+      priceHtml = priceHtml.replace(discount, `-${discount}`)
+    }
+  }
+  
+  // 处理原价和折扣价
+  const priceRegex = /(\d+[.,]\d{2})/g
+  return priceHtml.replace(priceRegex, (match) => {
+    // 将美元价格转换为人民币（简单的汇率转换，实际应该使用实时汇率）
+    const usdPrice = parseFloat(match.replace(',', '.'))
+    const rmbPrice = (usdPrice * 7.2).toFixed(2) // 使用固定汇率 7.2
+    return rmbPrice
+  })
 }
 
 onMounted(() => {
