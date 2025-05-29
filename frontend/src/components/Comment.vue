@@ -56,7 +56,7 @@
 //TODO: 封禁用户不能进行评论和点赞
 //TODO：管理员管理评论
 //TODO：评论可以被单独删除，其子评论也会被删除，点赞也会被删除但是楼号不变。自己评论会有删除按钮，其他评论只有举报功能。
-import { ref, defineProps, defineEmits } from 'vue'
+import { ref, defineProps, defineEmits, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
 
@@ -77,6 +77,23 @@ const emit = defineEmits(['refresh'])
 const replyingTo = ref(null)
 const replyContent = ref('')
 const newComment = ref('')
+const isBanned = ref(false)
+
+onMounted(async () => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    try {
+      const res = await axios.get('http://localhost:5000/api/user/profile', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.data && res.data.data) {
+        isBanned.value = res.data.data.is_banned
+      }
+    } catch (e) {
+      isBanned.value = false
+    }
+  }
+})
 
 const showReplyBox = (comment) => {
   replyingTo.value = comment.id
@@ -87,6 +104,10 @@ const cancelReply = () => {
   replyContent.value = ''
 }
 const submitReply = async (comment) => {
+  if (isBanned.value) {
+    ElMessage.error('您的账号已被封禁，无法进行此操作')
+    return
+  }
   if (!replyContent.value.trim()) {
     ElMessage.warning('请输入回复内容')
     return
@@ -107,6 +128,10 @@ const submitReply = async (comment) => {
   }
 }
 const submitComment = async () => {
+  if (isBanned.value) {
+    ElMessage.error('您的账号已被封禁，无法进行此操作')
+    return
+  }
   if (!newComment.value.trim()) {
     ElMessage.warning('请输入评论内容')
     return
