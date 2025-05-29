@@ -188,8 +188,8 @@ class Comment(db.Model):
     article_id = db.Column(db.Integer, db.ForeignKey('articles.id'), nullable=False)
     parent_id = db.Column(db.Integer, db.ForeignKey('comments.id'), nullable=True)
     floor = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_cn_datetime)
+    updated_at = db.Column(db.DateTime, default=get_cn_datetime, onupdate=get_cn_datetime)
 
     def to_dict(self):
         user = User.query.get(self.user_id)
@@ -1760,20 +1760,50 @@ def unpin_article(article_id):
 
 @app.route('/api/articles/<int:article_id>/comments', methods=['GET'])
 def get_article_comments(article_id):
-    def build_comment_tree(comments, parent_id=None):
-        tree = []
-        for comment in comments:
-            if comment.parent_id == parent_id:
-                item = comment.to_dict()
-                item['children'] = build_comment_tree(comments, comment.id)
-                tree.append(item)
-        return tree
-    comments = Comment.query.filter_by(article_id=article_id).order_by(Comment.floor.asc()).all()
-    return jsonify({
-        'code': 200,
-        'message': '获取成功',
-        'data': build_comment_tree(comments)
-    })
+    try:
+        def build_comment_tree(comments, parent_id=None):
+            tree = []
+            for comment in comments:
+                if comment.parent_id == parent_id:
+                    item = comment.to_dict()
+                    # 新增：如果是回复，查找被回复的用户昵称
+                    if comment.parent_id:
+                        parent_comment = next((c for c in comments if c.id == comment.parent_id), None)
+                        if parent_comment:
+                            user = User.query.get(parent_comment.user_id)
+                            item['reply_nickname'] = user.nickname if user else ''
+                        else:
+                            item['reply_nickname'] = ''
+                    else:
+                        item['reply_nickname'] = ''
+                    # 获取当前用户的点赞状态
+                    try:
+                        current_user = get_jwt_identity()
+                        if current_user:
+                            user = User.query.filter_by(username=current_user).first()
+                            if user:
+                                like = CommentLike.query.filter_by(user_id=user.id, comment_id=comment.id).first()
+                                item['liked'] = bool(like)
+                        else:
+                            item['liked'] = False
+                    except:
+                        item['liked'] = False
+                    item['children'] = build_comment_tree(comments, comment.id)
+                    tree.append(item)
+            return tree
+
+        comments = Comment.query.filter_by(article_id=article_id).order_by(Comment.floor.asc()).all()
+        return jsonify({
+            'code': 200,
+            'message': '获取成功',
+            'data': build_comment_tree(comments)
+        })
+    except Exception as e:
+        print(f"获取评论错误: {str(e)}")
+        return jsonify({
+            'code': 500,
+            'message': '获取评论失败'
+        }), 500
 
 @app.route('/api/articles/<int:article_id>/comments', methods=['POST'])
 @jwt_required()
@@ -1806,19 +1836,34 @@ def post_article_comment(article_id):
 @app.route('/api/comments/<int:comment_id>/like', methods=['POST'])
 @jwt_required()
 def like_comment(comment_id):
-    user = User.query.filter_by(username=get_jwt_identity()).first()
-    if not user:
-        return jsonify({'message': '用户不存在'}), 404
-    like = CommentLike.query.filter_by(user_id=user.id, comment_id=comment_id).first()
-    if like:
-        db.session.delete(like)
-        db.session.commit()
-        return jsonify({'code': 200, 'message': '取消点赞'})
-    else:
-        new_like = CommentLike(user_id=user.id, comment_id=comment_id)
-        db.session.add(new_like)
-        db.session.commit()
-        return jsonify({'code': 200, 'message': '点赞成功'})
+    try:
+        user = User.query.filter_by(username=get_jwt_identity()).first()
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+        
+        # 检查用户是否被封禁
+        if user.is_banned:
+            return jsonify({
+                'code': 403,
+                'message': '您的账号已被封禁，无法进行此操作'
+            }), 403
+            
+        like = CommentLike.query.filter_by(user_id=user.id, comment_id=comment_id).first()
+        if like:
+            db.session.delete(like)
+            db.session.commit()
+            return jsonify({'code': 200, 'message': '取消点赞', 'liked': False})
+        else:
+            new_like = CommentLike(user_id=user.id, comment_id=comment_id)
+            db.session.add(new_like)
+            db.session.commit()
+            return jsonify({'code': 200, 'message': '点赞成功', 'liked': True})
+    except Exception as e:
+        print(f"评论点赞错误: {str(e)}")
+        return jsonify({
+            'code': 500,
+            'message': '操作失败'
+        }), 500
 
 @app.route('/api/comments/<int:comment_id>/like', methods=['GET'])
 @jwt_required()

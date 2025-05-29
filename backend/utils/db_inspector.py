@@ -132,5 +132,5 @@ def print_table_data():
         print(f"数据库连接错误: {err}")
 
 if __name__ == "__main__":
-    print_table_structure()
+    print_table_structure() 
     print_table_data() 

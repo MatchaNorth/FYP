@@ -22,6 +22,21 @@
           </div>
         </div>
         <div class="article-body markdown-content" v-html="renderedContent" ref="contentRef"></div>
+        <!-- 分界线 -->
+        <div class="article-comment-divider"></div>
+        <!-- 评论区直接放在主内容下方 -->
+        <div class="article-comments">
+          <div class="comments-title">
+            <span class="title">评论区</span>
+            <span class="count">（{{ comments.length }} 条）</span>
+          </div>
+          <Comment 
+            :comments="comments" 
+            :article-id="article.id" 
+            :show-input="true" 
+            @refresh="fetchComments" 
+          />
+        </div>
       </div>
 
       <!-- 右侧作者信息和操作 -->
@@ -71,15 +86,6 @@
           </button>
         </div>
       </div>
-    </div>
-    <!-- 评论区 -->
-    <div class="article-comments">
-      <Comment 
-        :comments="comments" 
-        :article-id="article.id" 
-        :show-input="true" 
-        @refresh="fetchComments" 
-      />
     </div>
   </div>
 </template>
@@ -774,8 +780,52 @@ onMounted(() => {
 
 .article-comments {
   margin: 40px 0 0 0;
-  background: var(--card-bg);
+  background: #fff;
   border-radius: 16px;
-  padding: 32px;
+  padding: 40px 32px 32px 32px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  width: 100%;
+}
+
+.comments-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #2563eb;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count {
+  font-size: 15px;
+  color: #888;
+  font-weight: 400;
+}
+
+@media (max-width: 1024px) {
+  .article-main {
+    padding: 24px;
+  }
+  .article-comments {
+    padding: 24px 8px 16px 8px;
+    margin: 24px 0 0 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .article-comments {
+    padding: 16px 4px 12px 4px;
+    margin: 16px 0 0 0;
+    width: 100%;
+  }
+}
+
+.article-comment-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 48px 0 32px 0;
+  border-radius: 1px;
 }
 </style> 
