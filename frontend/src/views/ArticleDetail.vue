@@ -84,6 +84,10 @@
             <el-icon><Delete /></el-icon>
             <span>删除文章</span>
           </button>
+          <button v-if="!isAuthor" class="action-btn report-btn" :disabled="hasReported" @click="handleReport">
+            <el-icon><Warning /></el-icon>
+            <span>{{ hasReported ? '已举报' : '举报' }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -96,7 +100,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 import HeadMenu from '../components/HeadMenu.vue'
-import { Calendar, View, Star, EditPen, Delete } from '@element-plus/icons-vue'
+import { Calendar, View, Star, EditPen, Delete, Warning } from '@element-plus/icons-vue'
 import SteamGameBlock from '../components/SteamGameBlock.vue'
 import md from '../utils/markdownRenderer'
 import { createApp } from 'vue'
@@ -115,6 +119,7 @@ const isLiked = ref(false)
 const contentRef = ref(null)
 const isBanned = ref(false)
 const comments = ref([])
+const hasReported = ref(false)
 
 // 渲染Markdown内容
 const renderedContent = computed(() => {
@@ -321,8 +326,41 @@ const fetchComments = async () => {
   }
 }
 
+const fetchReportStatus = async () => {
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    const res = await axios.get(`http://localhost:5000/api/articles/${route.params.id}/report/status`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.data && res.data.code === 200) {
+      hasReported.value = res.data.reported
+    }
+  } catch (e) {
+    hasReported.value = false
+  }
+}
+
+const handleReport = async () => {
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      ElMessage.warning('请先登录后再举报')
+      return
+    }
+    await axios.post(`http://localhost:5000/api/articles/${route.params.id}/report`, {}, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    ElMessage.success('已举报，感谢您的反馈！')
+    hasReported.value = true
+  } catch (e) {
+    ElMessage.error('举报失败')
+  }
+}
+
 onMounted(() => {
   fetchArticle()
+  fetchReportStatus()
 })
 </script>
 
@@ -529,6 +567,16 @@ onMounted(() => {
 }
 
 .delete-btn:hover {
+  background: #EF4444;
+  color: white;
+}
+
+.report-btn {
+  background: rgba(239, 68, 68, 0.1);
+  color: #EF4444;
+}
+
+.report-btn:hover {
   background: #EF4444;
   color: white;
 }

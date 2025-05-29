@@ -158,6 +158,7 @@ class Article(db.Model):
     likes = db.Column(db.Integer, default=0)
     is_hidden = db.Column(db.Boolean, default=False)
     is_pinned = db.Column(db.Boolean, default=False)
+    is_reported = db.Column(db.Integer, default=0)
     
     def to_dict(self):
         author = User.query.get(self.author_id)
@@ -190,6 +191,7 @@ class Comment(db.Model):
     floor = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=get_cn_datetime)
     updated_at = db.Column(db.DateTime, default=get_cn_datetime, onupdate=get_cn_datetime)
+    is_reported = db.Column(db.Integer, default=0)
 
     def to_dict(self):
         user = User.query.get(self.user_id)
@@ -213,6 +215,16 @@ class CommentLike(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     comment_id = db.Column(db.Integer, db.ForeignKey('comments.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# 举报模型
+class Report(db.Model):
+    __tablename__ = 'reports'
+    id = db.Column(db.Integer, primary_key=True)
+    report_type = db.Column(db.String(20), nullable=False)  # user/article/comment
+    target_content = db.Column(db.String(255), nullable=False)
+    reporter_username = db.Column(db.String(80), nullable=False)
+    reported_username = db.Column(db.String(80), nullable=False)
+    report_time = db.Column(db.DateTime, default=get_cn_datetime)
 
 # 路由
 @app.route('/api/user/profile', methods=['GET'])
@@ -1833,46 +1845,112 @@ def post_article_comment(article_id):
     db.session.commit()
     return jsonify({'code': 200, 'message': '评论成功', 'data': comment.to_dict()})
 
-@app.route('/api/comments/<int:comment_id>/like', methods=['POST'])
+@app.route('/api/comments/<int:comment_id>', methods=['DELETE', 'OPTIONS'])
 @jwt_required()
-def like_comment(comment_id):
-    try:
-        user = User.query.filter_by(username=get_jwt_identity()).first()
-        if not user:
-            return jsonify({'message': '用户不存在'}), 404
-        
-        # 检查用户是否被封禁
-        if user.is_banned:
-            return jsonify({
-                'code': 403,
-                'message': '您的账号已被封禁，无法进行此操作'
-            }), 403
-            
-        like = CommentLike.query.filter_by(user_id=user.id, comment_id=comment_id).first()
-        if like:
-            db.session.delete(like)
-            db.session.commit()
-            return jsonify({'code': 200, 'message': '取消点赞', 'liked': False})
-        else:
-            new_like = CommentLike(user_id=user.id, comment_id=comment_id)
-            db.session.add(new_like)
-            db.session.commit()
-            return jsonify({'code': 200, 'message': '点赞成功', 'liked': True})
-    except Exception as e:
-        print(f"评论点赞错误: {str(e)}")
-        return jsonify({
-            'code': 500,
-            'message': '操作失败'
-        }), 500
-
-@app.route('/api/comments/<int:comment_id>/like', methods=['GET'])
-@jwt_required()
-def get_comment_like_status(comment_id):
+def delete_comment(comment_id):
+    if request.method == 'OPTIONS':
+        return '', 204
     user = User.query.filter_by(username=get_jwt_identity()).first()
     if not user:
         return jsonify({'message': '用户不存在'}), 404
-    like = CommentLike.query.filter_by(user_id=user.id, comment_id=comment_id).first()
-    return jsonify({'code': 200, 'liked': bool(like)})
+    comment = Comment.query.get(comment_id)
+    if not comment:
+        return jsonify({'message': '评论不存在'}), 404
+    if comment.user_id != user.id:
+        return jsonify({'message': '无权删除该评论'}), 403
+    try:
+        def delete_comment_and_children(cid):
+            children = Comment.query.filter_by(parent_id=cid).all()
+            for child in children:
+                delete_comment_and_children(child.id)
+            # 删除评论点赞
+            CommentLike.query.filter_by(comment_id=cid).delete()
+            # 删除评论本身
+            Comment.query.filter_by(id=cid).delete()
+        delete_comment_and_children(comment_id)
+        db.session.commit()
+        return jsonify({'code': 200, 'message': '评论删除成功'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'code': 500, 'message': '评论删除失败'})
+
+@app.route('/api/articles/<int:article_id>/report', methods=['POST', 'OPTIONS'])
+@jwt_required()
+def report_article(article_id):
+    if request.method == 'OPTIONS':
+        return '', 204
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    if not user:
+        return jsonify({'message': '用户不存在'}), 404
+    article = Article.query.get(article_id)
+    if not article:
+        return jsonify({'message': '文章不存在'}), 404
+    # is_reported字段自增
+    article.is_reported = (article.is_reported or 0) + 1
+    # 插入举报表
+    report = Report(
+        report_type='article',
+        target_content=article.title,
+        reporter_username=user.username,
+        reported_username=User.query.get(article.author_id).username if article.author_id else '',
+    )
+    db.session.add(report)
+    db.session.commit()
+    return jsonify({'code': 200, 'message': '文章已举报'})
+
+@app.route('/api/comments/<int:comment_id>/report', methods=['POST'])
+@jwt_required()
+def report_comment(comment_id):
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    if not user:
+        return jsonify({'message': '用户不存在'}), 404
+    comment = Comment.query.get(comment_id)
+    if not comment:
+        return jsonify({'message': '评论不存在'}), 404
+    # is_reported字段自增
+    comment.is_reported = (comment.is_reported or 0) + 1
+    # 插入举报表
+    report = Report(
+        report_type='comment',
+        target_content=comment.content,
+        reporter_username=user.username,
+        reported_username=User.query.get(comment.user_id).username if comment.user_id else '',
+    )
+    db.session.add(report)
+    db.session.commit()
+    return jsonify({'code': 200, 'message': '评论已举报'})
+
+@app.route('/api/articles/<int:article_id>/report/status', methods=['GET'])
+@jwt_required()
+def article_report_status(article_id):
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    if not user:
+        return jsonify({'message': '用户不存在'}), 404
+    article = Article.query.get(article_id)
+    if not article:
+        return jsonify({'message': '文章不存在'}), 404
+    reported = Report.query.filter_by(
+        report_type='article',
+        reporter_username=user.username,
+        target_content=article.title
+    ).first()
+    return jsonify({'code': 200, 'reported': bool(reported)})
+
+@app.route('/api/comments/<int:comment_id>/report/status', methods=['GET'])
+@jwt_required()
+def comment_report_status(comment_id):
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    if not user:
+        return jsonify({'message': '用户不存在'}), 404
+    comment = Comment.query.get(comment_id)
+    if not comment:
+        return jsonify({'message': '评论不存在'}), 404
+    reported = Report.query.filter_by(
+        report_type='comment',
+        reporter_username=user.username,
+        target_content=comment.content
+    ).first()
+    return jsonify({'code': 200, 'reported': bool(reported)})
 
 # 全局错误处理器
 @app.errorhandler(404)

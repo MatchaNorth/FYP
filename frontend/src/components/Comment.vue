@@ -22,6 +22,10 @@
             <span>{{ comment.liked ? '已赞' : '点赞' }}</span>
           </el-button>
           <el-button size="small" type="text" @click="showReplyBox(comment)">回复</el-button>
+          <el-button v-if="userId === comment.user_id" size="small" type="text" @click="handleDelete(comment)">删除</el-button>
+          <el-button v-else size="small" type="text" :disabled="comment.hasReported" @click="handleReport(comment)">
+            {{ comment.hasReported ? '已举报' : '举报' }}
+          </el-button>
         </div>
         <!-- 回复框 -->
         <div v-if="replyingTo === comment.id" class="reply-box">
@@ -52,12 +56,12 @@
 <script setup>
 //TODO：删除文章时删除评论
 //TODO：删除评论时删除点赞
-//TODO：点赞后不能点赞
-//TODO: 封禁用户不能进行评论和点赞
+//DONE：点赞后不能点赞
+//DONE: 封禁用户不能进行评论和点赞
 //TODO：管理员管理评论
 //TODO：评论可以被单独删除，其子评论也会被删除，点赞也会被删除但是楼号不变。自己评论会有删除按钮，其他评论只有举报功能。
-import { ref, defineProps, defineEmits, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, defineProps, defineEmits, onMounted, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
 const props = defineProps({
@@ -78,6 +82,7 @@ const replyingTo = ref(null)
 const replyContent = ref('')
 const newComment = ref('')
 const isBanned = ref(false)
+const userId = ref(null)
 
 onMounted(async () => {
   const token = localStorage.getItem('token')
@@ -88,11 +93,18 @@ onMounted(async () => {
       })
       if (res.data && res.data.data) {
         isBanned.value = res.data.data.is_banned
+        userId.value = res.data.data.id
       }
     } catch (e) {
       isBanned.value = false
+      userId.value = null
     }
   }
+  fetchAllReportStatus(props.comments)
+})
+
+watch(() => props.comments, (newVal) => {
+  fetchAllReportStatus(newVal)
 })
 
 const showReplyBox = (comment) => {
@@ -166,6 +178,69 @@ const handleLike = async (comment) => {
     } else {
       ElMessage.error('操作失败')
     }
+  }
+}
+const handleDelete = async (comment) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这条评论及其所有子评论吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    const token = localStorage.getItem('token')
+    await axios.delete(`http://localhost:5000/api/comments/${comment.id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    ElMessage.success('删除成功')
+    emit('refresh')
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+const fetchCommentReportStatus = async (comment) => {
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    const res = await axios.get(`http://localhost:5000/api/comments/${comment.id}/report/status`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.data && res.data.code === 200) {
+      comment.hasReported = res.data.reported
+    } else {
+      comment.hasReported = false
+    }
+  } catch (e) {
+    comment.hasReported = false
+  }
+}
+
+const fetchAllReportStatus = (comments) => {
+  if (!comments) return
+  comments.forEach(comment => {
+    fetchCommentReportStatus(comment)
+    if (comment.children && comment.children.length) {
+      fetchAllReportStatus(comment.children)
+    }
+  })
+}
+
+const handleReport = async (comment) => {
+  if (comment.hasReported) return
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      ElMessage.warning('请先登录后再举报')
+      return
+    }
+    await axios.post(`http://localhost:5000/api/comments/${comment.id}/report`, {}, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    ElMessage.success('已举报，感谢您的反馈！')
+    comment.hasReported = true
+  } catch (e) {
+    ElMessage.error('举报失败')
   }
 }
 </script>
