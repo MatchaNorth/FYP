@@ -14,6 +14,7 @@ import os
 from werkzeug.utils import secure_filename
 from sqlalchemy.sql import func
 from routes.proxy import proxy_bp
+from sqlalchemy import func
 
 # 创建Flask应用
 app = Flask(__name__)
@@ -221,7 +222,7 @@ class Report(db.Model):
     __tablename__ = 'reports'
     id = db.Column(db.Integer, primary_key=True)
     report_type = db.Column(db.String(20), nullable=False)  # user/article/comment
-    target_content = db.Column(db.String(255), nullable=False)
+    target_id = db.Column(db.Integer, nullable=False)
     reporter_username = db.Column(db.String(80), nullable=False)
     reported_username = db.Column(db.String(80), nullable=False)
     report_time = db.Column(db.DateTime, default=get_cn_datetime)
@@ -725,14 +726,24 @@ def delete_article(article_id):
                 'code': 403,
                 'message': '没有权限删除该文章'
             }), 403
-        
         # 删除相关的点赞记录
         ArticleLike.query.filter_by(article_id=article_id).delete()
-        
+        # 删除文章举报记录
+        Report.query.filter_by(report_type='article', target_id=article_id).delete()
+        # 删除该文章下所有评论及其相关数据
+        def delete_comment_and_children(cid):
+            children = Comment.query.filter_by(parent_id=cid).all()
+            for child in children:
+                delete_comment_and_children(child.id)
+            CommentLike.query.filter_by(comment_id=cid).delete()
+            Report.query.filter_by(report_type='comment', target_id=cid).delete()
+            Comment.query.filter_by(id=cid).delete()
+        comments = Comment.query.filter_by(article_id=article_id, parent_id=None).all()
+        for comment in comments:
+            delete_comment_and_children(comment.id)
         # 删除文章
         db.session.delete(article)
         db.session.commit()
-        
         return jsonify({
             'code': 200,
             'message': '删除文章成功'
@@ -1865,6 +1876,8 @@ def delete_comment(comment_id):
                 delete_comment_and_children(child.id)
             # 删除评论点赞
             CommentLike.query.filter_by(comment_id=cid).delete()
+            # 删除举报记录
+            Report.query.filter_by(report_type='comment', target_id=cid).delete()
             # 删除评论本身
             Comment.query.filter_by(id=cid).delete()
         delete_comment_and_children(comment_id)
@@ -1885,12 +1898,10 @@ def report_article(article_id):
     article = Article.query.get(article_id)
     if not article:
         return jsonify({'message': '文章不存在'}), 404
-    # is_reported字段自增
     article.is_reported = (article.is_reported or 0) + 1
-    # 插入举报表
     report = Report(
         report_type='article',
-        target_content=article.title,
+        target_id=article.id,
         reporter_username=user.username,
         reported_username=User.query.get(article.author_id).username if article.author_id else '',
     )
@@ -1907,12 +1918,10 @@ def report_comment(comment_id):
     comment = Comment.query.get(comment_id)
     if not comment:
         return jsonify({'message': '评论不存在'}), 404
-    # is_reported字段自增
     comment.is_reported = (comment.is_reported or 0) + 1
-    # 插入举报表
     report = Report(
         report_type='comment',
-        target_content=comment.content,
+        target_id=comment.id,
         reporter_username=user.username,
         reported_username=User.query.get(comment.user_id).username if comment.user_id else '',
     )
@@ -1932,7 +1941,7 @@ def article_report_status(article_id):
     reported = Report.query.filter_by(
         report_type='article',
         reporter_username=user.username,
-        target_content=article.title
+        target_id=article.id
     ).first()
     return jsonify({'code': 200, 'reported': bool(reported)})
 
@@ -1948,9 +1957,74 @@ def comment_report_status(comment_id):
     reported = Report.query.filter_by(
         report_type='comment',
         reporter_username=user.username,
-        target_content=comment.content
+        target_id=comment.id
     ).first()
     return jsonify({'code': 200, 'reported': bool(reported)})
+
+@app.route('/api/admin/reports/summary', methods=['GET'])
+@jwt_required()
+def report_summary():
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    if not user or user.role != 'admin':
+        return jsonify({'message': '没有权限'}), 403
+    # 用户举报
+    user_reports = db.session.query(
+        Report.target_id, User.username, func.count(Report.id).label('count')
+    ).join(User, User.id == Report.target_id)
+    user_reports = user_reports.filter(Report.report_type == 'user')
+    user_reports = user_reports.group_by(Report.target_id).order_by(func.count(Report.id).desc()).all()
+    user_data = [
+        {'id': r.target_id, 'username': r.username, 'count': r.count}
+        for r in user_reports
+    ]
+    # 文章举报
+    article_reports = db.session.query(
+        Report.target_id, Article.title, func.count(Report.id).label('count')
+    ).join(Article, Article.id == Report.target_id)
+    article_reports = article_reports.filter(Report.report_type == 'article')
+    article_reports = article_reports.group_by(Report.target_id).order_by(func.count(Report.id).desc()).all()
+    article_data = [
+        {'id': r.target_id, 'title': r.title, 'count': r.count}
+        for r in article_reports
+    ]
+    # 评论举报
+    comment_reports = db.session.query(
+        Report.target_id, Comment.content, func.count(Report.id).label('count')
+    ).join(Comment, Comment.id == Report.target_id)
+    comment_reports = comment_reports.filter(Report.report_type == 'comment')
+    comment_reports = comment_reports.group_by(Report.target_id).order_by(func.count(Report.id).desc()).all()
+    comment_data = [
+        {'id': r.target_id, 'content': r.content, 'count': r.count}
+        for r in comment_reports
+    ]
+    return jsonify({'code': 200, 'data': {
+        'user': user_data,
+        'article': article_data,
+        'comment': comment_data
+    }})
+
+@app.route('/api/admin/reports/detail', methods=['GET'])
+@jwt_required()
+def report_detail():
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    if not user or user.role != 'admin':
+        return jsonify({'message': '没有权限'}), 403
+    report_type = request.args.get('type')
+    target_id = request.args.get('id', type=int)
+    if not report_type or not target_id:
+        return jsonify({'message': '参数错误'}), 400
+    reports = Report.query.filter_by(report_type=report_type, target_id=target_id).order_by(Report.report_time.desc()).all()
+    detail = []
+    for r in reports:
+        d = {
+            'reporter_username': r.reporter_username,
+            'report_time': r.report_time.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        if report_type == 'comment':
+            comment = Comment.query.get(r.target_id)
+            d['article_id'] = comment.article_id if comment else None
+        detail.append(d)
+    return jsonify({'code': 200, 'data': detail})
 
 # 全局错误处理器
 @app.errorhandler(404)

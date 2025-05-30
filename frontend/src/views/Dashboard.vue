@@ -56,6 +56,15 @@
             <i class="el-icon-setting"></i>
             <span v-show="!isSidebarCollapsed">管理系统</span>
           </div>
+          <div 
+            v-if="userRole === 'admin'"
+            class="nav-item" 
+            :class="{ 'active': currentView === 'report', 'collapsed': isSidebarCollapsed }"
+            @click="switchView('report')"
+          >
+            <i class="el-icon-warning"></i>
+            <span v-show="!isSidebarCollapsed">举报管理</span>
+          </div>
         </nav>
       </div>
       
@@ -377,6 +386,72 @@
             </table>
           </div>
         </div>
+
+        <!-- 举报管理页面 -->
+        <div v-else-if="currentView === 'report'" class="report-view" :class="{ 'fade-enter': viewTransition }">
+          <div class="report-tabs">
+            <button :class="{active: reportTab === 'user'}" @click="reportTab = 'user'">用户举报</button>
+            <button :class="{active: reportTab === 'article'}" @click="reportTab = 'article'">文章举报</button>
+            <button :class="{active: reportTab === 'comment'}" @click="reportTab = 'comment'">评论举报</button>
+          </div>
+          <div class="report-table-container">
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th v-if="reportTab === 'user'">用户名</th>
+                  <th v-if="reportTab === 'article'">文章标题</th>
+                  <th v-if="reportTab === 'comment'">评论内容</th>
+                  <th>被举报次数</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in reportData[reportTab]" :key="item.id"
+                    :style="getReportRowStyle(item.count)"
+                    @click="showReportDetail(reportTab, item)">
+                  <td v-if="reportTab === 'user'">{{ item.username }}</td>
+                  <td v-if="reportTab === 'article'">{{ item.title }}</td>
+                  <td v-if="reportTab === 'comment'">{{ item.content }}</td>
+                  <td><span :style="getReportTextStyle(item.count)">{{ item.count }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <el-dialog v-model="reportDetailDialogVisible" title="举报详情" width="400px">
+            <el-table :data="reportDetail" style="width: 100%">
+              <el-table-column prop="reporter_username" label="举报人" width="120" />
+              <el-table-column prop="report_time" label="举报时间" />
+            </el-table>
+            <div class="report-actions" v-if="reportTab === 'comment' || reportTab === 'article'">
+              <el-button 
+                v-if="reportTab === 'comment'"
+                type="danger" 
+                @click="handleReportAction('delete_comment')"
+              >
+                删除评论
+              </el-button>
+              <template v-if="reportTab === 'article'">
+                <el-button 
+                  type="danger" 
+                  @click="handleReportAction('delete_article')"
+                >
+                  删除文章
+                </el-button>
+                <el-button 
+                  type="warning" 
+                  @click="handleReportAction('hide_article')"
+                >
+                  隐藏文章
+                </el-button>
+              </template>
+              <el-button 
+                type="primary" 
+                @click="handleReportAction('view')"
+              >
+                查看{{ reportTab === 'comment' ? '评论' : '文章' }}
+              </el-button>
+            </div>
+          </el-dialog>
+        </div>
       </div>
     </div>
   </div>
@@ -459,6 +534,10 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 import ArticleManager from './ArticleManager.vue'
 import gsap from 'gsap'
+import { ScrollToPlugin } from 'gsap/ScrollToPlugin'
+
+// 注册 GSAP 插件
+gsap.registerPlugin(ScrollToPlugin)
 
 const router = useRouter()
 const username = ref('')
@@ -505,7 +584,8 @@ const viewTitles = {
   overview: '总览',
   articles: '文章管理',
   profile: '个人资料',
-  admin: '管理系统'
+  admin: '管理系统',
+  report: '举报管理'
 }
 
 // 主题切换
@@ -527,7 +607,13 @@ const animateNumber = (target, value, duration = 1.5) => {
     duration,
     value,
     roundProps: 'value',
-    ease: 'power3.out'
+    ease: 'power3.out',
+    onUpdate: () => {
+      // 确保值被正确更新
+      if (typeof target === 'object' && target !== null) {
+        target.value = Math.round(target.value)
+      }
+    }
   })
 }
 
@@ -1056,6 +1142,142 @@ const handleAvatarUpload = async () => {
     ElMessage.error('上传头像失败')
   }
 }
+
+const reportTab = ref('user')
+const reportData = ref({ user: [], article: [], comment: [] })
+const reportDetailDialogVisible = ref(false)
+const reportDetail = ref([])
+
+const fetchReportSummary = async () => {
+  try {
+    const token = localStorage.getItem('token')
+    const res = await axios.get('http://localhost:5000/api/admin/reports/summary', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.data && res.data.code === 200) {
+      reportData.value = res.data.data
+    }
+  } catch (e) {
+    ElMessage.error('获取举报统计失败')
+  }
+}
+
+const showReportDetail = async (type, item) => {
+  try {
+    currentReportId.value = item.id
+    const token = localStorage.getItem('token')
+    const res = await axios.get(`http://localhost:5000/api/admin/reports/detail?type=${type}&id=${item.id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.data && res.data.code === 200) {
+      // 保存完整的举报信息，包括文章ID
+      reportDetail.value = res.data.data
+      // 更新当前项的完整信息
+      const index = reportData.value[type].findIndex(i => i.id === item.id)
+      if (index !== -1) {
+        reportData.value[type][index] = {
+          ...reportData.value[type][index],
+          ...res.data.data[0] // 使用第一条举报记录的完整信息
+        }
+      }
+      reportDetailDialogVisible.value = true
+    }
+  } catch (e) {
+    ElMessage.error('获取举报详情失败')
+  }
+}
+
+const getReportRowStyle = (count) => {
+  // 颜色深度随count递增，最大深度为5
+  const max = Math.max(...reportData.value[reportTab.value].map(i => i.count), 1)
+  const percent = Math.min(count / max, 1)
+  const bg = `rgba(239,68,68,${0.1 + percent * 0.5})`
+  return { background: bg, cursor: 'pointer' }
+}
+const getReportTextStyle = (count) => {
+  const max = Math.max(...reportData.value[reportTab.value].map(i => i.count), 1)
+  const percent = Math.min(count / max, 1)
+  const color = percent > 0.7 ? '#fff' : percent > 0.4 ? '#fffbe6' : '#EF4444'
+  return { color, fontWeight: 'bold' }
+}
+
+watch(reportTab, fetchReportSummary, { immediate: true })
+
+// 在 script setup 部分添加处理函数
+const handleReportAction = async (action) => {
+  const currentItem = reportData.value[reportTab.value].find(item => item.id === currentReportId.value)
+  if (!currentItem) return
+
+  try {
+    switch (action) {
+      case 'delete_comment':
+        await ElMessageBox.confirm('确定要删除这条评论吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        await axios.delete(`http://localhost:5000/api/admin/comments/${currentItem.id}`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+        ElMessage.success('评论已删除')
+        break
+
+      case 'delete_article':
+        await ElMessageBox.confirm('确定要删除这篇文章吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        await axios.delete(`http://localhost:5000/api/admin/articles/${currentItem.id}`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+        ElMessage.success('文章已删除')
+        break
+
+      case 'hide_article':
+        await ElMessageBox.confirm('确定要隐藏这篇文章吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        await axios.post(`http://localhost:5000/api/admin/articles/${currentItem.id}/hide`, {}, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+        ElMessage.success('文章已隐藏')
+        break
+
+      case 'view':
+        if (reportTab.value === 'comment') {
+          // 优先用举报详情里的 article_id
+          const detail = reportDetail.value[0]
+          if (detail && detail.article_id) {
+            router.push(`/articles/public/${detail.article_id}`)
+          } else {
+            ElMessage.warning('无法获取评论所属文章')
+          }
+        } else {
+          if (currentItem.id) {
+            router.push(`/article/${currentItem.id}`)
+          } else {
+            ElMessage.warning('无法获取文章信息')
+          }
+        }
+        break
+    }
+    
+    // 刷新举报列表
+    await fetchReportSummary()
+    reportDetailDialogVisible.value = false
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('操作失败:', error)
+      ElMessage.error(error.response?.data?.message || '操作失败')
+    }
+  }
+}
+
+// 添加当前举报项的 ID
+const currentReportId = ref(null)
 </script>
 
 <style>
@@ -2585,5 +2807,48 @@ button:hover {
 
 .el-tag i {
   font-size: 14px;
+}
+
+.report-tabs { display: flex; gap: 16px; margin-bottom: 20px; }
+.report-tabs button { padding: 8px 24px; border: none; border-radius: 8px; background: #f3f4f6; color: #EF4444; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.report-tabs button.active { background: #EF4444; color: #fff; }
+.report-table-container { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(239,68,68,0.08); padding: 24px; }
+.report-table { width: 100%; border-collapse: collapse; }
+.report-table th, .report-table td { padding: 12px 16px; text-align: left; }
+.report-table th { background: #f3f4f6; color: #EF4444; font-weight: 700; }
+.report-table tr { transition: background 0.2s; }
+
+.report-actions {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.report-actions .el-button {
+  min-width: 100px;
+}
+
+.report-actions .el-button--danger {
+  background: linear-gradient(135deg, #EF4444 0%, #F87171 100%);
+  border: none;
+}
+
+.report-actions .el-button--warning {
+  background: linear-gradient(135deg, #F59E0B 0%, #FCD34D 100%);
+  border: none;
+  color: white;
+}
+
+.report-actions .el-button--primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  border: none;
+}
+
+.report-actions .el-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 </style> 
