@@ -1257,7 +1257,7 @@ const handleReportAction = async (action) => {
           cancelButtonText: '取消',
           type: 'warning'
         })
-        await axios.delete(`http://localhost:5000/api/admin/articles/${currentItem.id}`, {
+        await axios.delete(`http://localhost:5000/api/admin/article/${currentItem.id}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         })
         ElMessage.success('文章已删除')
@@ -1269,7 +1269,7 @@ const handleReportAction = async (action) => {
           cancelButtonText: '取消',
           type: 'warning'
         })
-        await axios.post(`http://localhost:5000/api/admin/articles/${currentItem.id}/hide`, {}, {
+        await axios.post(`http://localhost:5000/api/admin/article/${currentItem.id}/hide`, {}, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         })
         ElMessage.success('文章已隐藏')

@@ -20,6 +20,7 @@
           <el-button size="small" type="text" @click="handleLike(comment)">
             <i :class="['el-icon-thumb', { liked: comment.liked }]" />
             <span>{{ comment.liked ? '已赞' : '点赞' }}</span>
+            <span class="like-count" v-if="comment.like_count > 0">{{ comment.like_count }}</span>
           </el-button>
           <el-button size="small" type="text" @click="showReplyBox(comment)">回复</el-button>
           <el-button v-if="userId === comment.user_id" size="small" type="text" @click="handleDelete(comment)">删除</el-button>
@@ -169,9 +170,9 @@ const handleLike = async (comment) => {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     ElMessage.success(res.data.message)
-    // 更新评论的点赞状态
+    // 更新评论的点赞状态和点赞数
     comment.liked = res.data.liked
-    emit('refresh')
+    comment.like_count = res.data.like_count
   } catch (e) {
     if (e.response && e.response.status === 403) {
       ElMessage.error(e.response.data.message || '您的账号已被封禁，无法进行此操作')
@@ -371,5 +372,10 @@ const handleReport = async (comment) => {
   color: #2563eb;
   font-size: 14px;
   margin-right: 4px;
+}
+.like-count {
+  margin-left: 4px;
+  color: #666;
+  font-size: 13px;
 }
 </style>

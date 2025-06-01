@@ -198,6 +198,8 @@ class Comment(db.Model):
 
     def to_dict(self):
         user = User.query.get(self.user_id)
+        # 获取评论点赞数
+        like_count = CommentLike.query.filter_by(comment_id=self.id).count()
         return {
             'id': self.id,
             'content': self.content,
@@ -208,7 +210,8 @@ class Comment(db.Model):
             'parent_id': self.parent_id,
             'floor': self.floor,
             'created_at': self.created_at.isoformat() if self.created_at else '',
-            'updated_at': self.updated_at.isoformat() if self.updated_at else ''
+            'updated_at': self.updated_at.isoformat() if self.updated_at else '',
+            'like_count': like_count
         }
 
 # 评论点赞记录模型
@@ -728,8 +731,10 @@ def delete_article(article_id):
         article = Article.query.get_or_404(article_id)
         if article.author_id != user.id:
             return jsonify({'code': 403, 'message': '没有权限删除该文章'}), 403
-        # 删除相关的点赞记录
+        # 先删除相关的点赞记录
         ArticleLike.query.filter_by(article_id=article_id).delete()
+        # 删除文章浏览记录
+        ArticleView.query.filter_by(article_id=article_id).delete()
         # 删除文章举报记录
         Report.query.filter_by(report_type='article', target_id=article_id).delete()
         # 删除该文章下所有评论及其相关数据
@@ -743,9 +748,13 @@ def delete_article(article_id):
         comments = Comment.query.filter_by(article_id=article_id, parent_id=None).all()
         for comment in comments:
             delete_comment_and_children(comment.id)
+        # 最后删除文章
         db.session.delete(article)
         db.session.commit()
-        return jsonify({'code': 200, 'message': '删除文章成功'})
+        return jsonify({
+            'code': 200,
+            'message': '文章删除成功'
+        })
     except Exception as e:
         return jsonify({'code': 500, 'message': str(e)}), 500
 
@@ -1681,7 +1690,7 @@ def show_article(article_id):
         print(f"显示文章错误: {str(e)}")
         return jsonify({'message': '操作失败'}), 500
 
-@app.route('/api/admin/article/<int:article_id>/delete', methods=['DELETE'])
+@app.route('/api/admin/article/<int:article_id>', methods=['DELETE'])
 @jwt_required()
 def admin_delete_article(article_id):
     current_user_id = get_jwt_identity()
@@ -1693,7 +1702,7 @@ def admin_delete_article(article_id):
             'message': '权限不足'
         }), 403
     
-    article = Article.query.get(article_id)
+    article = db.session.get(Article, article_id)
     if not article:
         return jsonify({
             'code': 404,
@@ -1701,6 +1710,24 @@ def admin_delete_article(article_id):
         }), 404
     
     try:
+        # 先删除相关的点赞记录
+        ArticleLike.query.filter_by(article_id=article_id).delete()
+        # 删除文章浏览记录
+        ArticleView.query.filter_by(article_id=article_id).delete()
+        # 删除文章举报记录
+        Report.query.filter_by(report_type='article', target_id=article_id).delete()
+        # 删除该文章下所有评论及其相关数据
+        def delete_comment_and_children(cid):
+            children = Comment.query.filter_by(parent_id=cid).all()
+            for child in children:
+                delete_comment_and_children(child.id)
+            CommentLike.query.filter_by(comment_id=cid).delete()
+            Report.query.filter_by(report_type='comment', target_id=cid).delete()
+            Comment.query.filter_by(id=cid).delete()
+        comments = Comment.query.filter_by(article_id=article_id, parent_id=None).all()
+        for comment in comments:
+            delete_comment_and_children(comment.id)
+        # 最后删除文章
         db.session.delete(article)
         db.session.commit()
         return jsonify({
@@ -1709,6 +1736,8 @@ def admin_delete_article(article_id):
         })
     except Exception as e:
         db.session.rollback()
+        import traceback
+        print(traceback.format_exc())
         return jsonify({
             'code': 500,
             'message': '删除文章失败'
@@ -2081,6 +2110,68 @@ def user_report_status(user_id):
         target_id=user_id
     ).first()
     return jsonify({'code': 200, 'reported': bool(reported)})
+
+@app.before_request
+def handle_options():
+    if request.method == 'OPTIONS':
+        return '', 204
+
+@app.route('/api/admin/comments/<int:comment_id>', methods=['DELETE'])
+@jwt_required()
+def admin_delete_comment(comment_id):
+    current_user = User.query.filter_by(username=get_jwt_identity()).first()
+    if not current_user or current_user.role != 'admin':
+        return jsonify({'code': 403, 'message': '没有权限'}), 403
+    comment = db.session.get(Comment, comment_id)
+    if not comment:
+        return jsonify({'code': 404, 'message': '评论不存在'}), 404
+    try:
+        # 递归删除子评论及相关数据
+        def delete_comment_and_children(cid):
+            children = Comment.query.filter_by(parent_id=cid).all()
+            for child in children:
+                delete_comment_and_children(child.id)
+            CommentLike.query.filter_by(comment_id=cid).delete()
+            Report.query.filter_by(report_type='comment', target_id=cid).delete()
+            Comment.query.filter_by(id=cid).delete()
+        delete_comment_and_children(comment_id)
+        db.session.commit()
+        return jsonify({'code': 200, 'message': '评论删除成功'})
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({'code': 500, 'message': '评论删除失败'})
+
+@app.route('/api/comments/<int:comment_id>/like', methods=['POST'])
+@jwt_required()
+def toggle_comment_like(comment_id):
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    if not user:
+        return jsonify({'message': '用户不存在'}), 404
+    comment = db.session.get(Comment, comment_id)
+    if not comment:
+        return jsonify({'message': '评论不存在'}), 404
+    # 检查是否已经点赞
+    existing_like = CommentLike.query.filter_by(
+        user_id=user.id,
+        comment_id=comment_id
+    ).first()
+    if existing_like:
+        # 已点赞则取消
+        db.session.delete(existing_like)
+        db.session.commit()
+        # 获取更新后的点赞数
+        like_count = CommentLike.query.filter_by(comment_id=comment_id).count()
+        return jsonify({'code': 200, 'message': '取消点赞成功', 'liked': False, 'like_count': like_count})
+    else:
+        # 未点赞则添加
+        like = CommentLike(user_id=user.id, comment_id=comment_id)
+        db.session.add(like)
+        db.session.commit()
+        # 获取更新后的点赞数
+        like_count = CommentLike.query.filter_by(comment_id=comment_id).count()
+        return jsonify({'code': 200, 'message': '点赞成功', 'liked': True, 'like_count': like_count})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 
