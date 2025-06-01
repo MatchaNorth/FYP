@@ -51,7 +51,10 @@
             <div class="article-content">
               <div class="article-header">
                 <div class="title-section">
-                  <h2 class="article-title">{{ article.title }}</h2>
+                  <h2 class="article-title">
+                    {{ article.title }}
+                    <span v-if="article.is_pinned" class="pinned-badge">置顶</span>
+                  </h2>
                   <div class="article-tags">
                     <span class="article-tag">游戏</span>
                   </div>
@@ -147,8 +150,10 @@ const formatDate = (dateString) => {
 
 // 筛选文章
 const filteredArticles = computed(() => {
-  // 首先过滤出已发布的文章
-  let result = articles.value.filter(article => article.status === 'published')
+  // 只显示已发布且未隐藏的文章
+  let result = articles.value.filter(article => 
+    article.status === 'published' && !article.is_hidden
+  )
 
   // 搜索过滤
   if (searchQuery.value) {
@@ -171,6 +176,13 @@ const filteredArticles = computed(() => {
       result = [...result].sort((a, b) => (b.likes || 0) - (a.likes || 0))
       break
   }
+
+  // 置顶文章排最前
+  result = result.sort((a, b) => {
+    if (a.is_pinned && !b.is_pinned) return -1
+    if (!a.is_pinned && b.is_pinned) return 1
+    return 0
+  })
 
   return result
 })
@@ -601,5 +613,19 @@ onMounted(() => {
     font-weight: 600;
     color: var(--text-primary);
   }
+}
+
+.pinned-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  color: #fff;
+  font-size: 12px;
+  font-weight: bold;
+  border-radius: 8px;
+  vertical-align: middle;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+  letter-spacing: 2px;
 }
 </style> 

@@ -22,10 +22,10 @@ app = Flask(__name__)
 # 配置CORS
 CORS(app, resources={
     r"/*": {
-        "origins": "*",
+        "origins": ["http://localhost:5173"],  # 只允许前端开发地址
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": False
+        "supports_credentials": True  # 允许带cookie/token
     }
 })
 
@@ -1654,21 +1654,16 @@ def hide_article(article_id):
     try:
         current_user = get_jwt_identity()
         admin = User.query.filter_by(username=current_user).first()
-        
         if not admin or admin.role != 'admin':
             return jsonify({'message': '没有权限执行此操作'}), 403
-            
         article = Article.query.get(article_id)
         if not article:
             return jsonify({'message': '文章不存在'}), 404
-            
+        # 隐藏时自动取消置顶
         article.is_hidden = True
+        article.is_pinned = False
         db.session.commit()
-        
-        return jsonify({
-            'code': 200,
-            'message': '隐藏成功'
-        })
+        return jsonify({'code': 200, 'message': '隐藏成功'})
     except Exception as e:
         print(f"隐藏文章错误: {str(e)}")
         return jsonify({'message': '操作失败'}), 500
@@ -1679,21 +1674,14 @@ def show_article(article_id):
     try:
         current_user = get_jwt_identity()
         admin = User.query.filter_by(username=current_user).first()
-        
         if not admin or admin.role != 'admin':
             return jsonify({'message': '没有权限执行此操作'}), 403
-            
         article = Article.query.get(article_id)
         if not article:
             return jsonify({'message': '文章不存在'}), 404
-            
         article.is_hidden = False
         db.session.commit()
-        
-        return jsonify({
-            'code': 200,
-            'message': '显示成功'
-        })
+        return jsonify({'code': 200, 'message': '显示成功'})
     except Exception as e:
         print(f"显示文章错误: {str(e)}")
         return jsonify({'message': '操作失败'}), 500
@@ -1737,21 +1725,19 @@ def pin_article(article_id):
     try:
         current_user = get_jwt_identity()
         admin = User.query.filter_by(username=current_user).first()
-        
         if not admin or admin.role != 'admin':
             return jsonify({'message': '没有权限执行此操作'}), 403
-            
         article = Article.query.get(article_id)
         if not article:
             return jsonify({'message': '文章不存在'}), 404
-            
+        if article.is_hidden:
+            return jsonify({'message': '隐藏文章不能置顶'}), 400
+        # 取消所有其他文章的置顶
+        Article.query.filter(Article.is_pinned == True).update({'is_pinned': False})
+        # 置顶当前文章
         article.is_pinned = True
         db.session.commit()
-        
-        return jsonify({
-            'code': 200,
-            'message': '置顶成功'
-        })
+        return jsonify({'code': 200, 'message': '置顶成功'})
     except Exception as e:
         print(f"置顶文章错误: {str(e)}")
         return jsonify({'message': '操作失败'}), 500
@@ -1762,21 +1748,14 @@ def unpin_article(article_id):
     try:
         current_user = get_jwt_identity()
         admin = User.query.filter_by(username=current_user).first()
-        
         if not admin or admin.role != 'admin':
             return jsonify({'message': '没有权限执行此操作'}), 403
-            
         article = Article.query.get(article_id)
         if not article:
             return jsonify({'message': '文章不存在'}), 404
-            
         article.is_pinned = False
         db.session.commit()
-        
-        return jsonify({
-            'code': 200,
-            'message': '取消置顶成功'
-        })
+        return jsonify({'code': 200, 'message': '取消置顶成功'})
     except Exception as e:
         print(f"取消置顶文章错误: {str(e)}")
         return jsonify({'message': '操作失败'}), 500
@@ -2040,6 +2019,30 @@ app.register_blueprint(proxy_bp, url_prefix='/api/proxy')
 # 初始化数据库
 with app.app_context():
     db.create_all()
+
+# 新增降级管理员接口
+@app.route('/api/admin/user/<int:user_id>/demote', methods=['POST'])
+@jwt_required()
+def demote_admin(user_id):
+    try:
+        current_user = get_jwt_identity()
+        admin = User.query.filter_by(username=current_user).first()
+        # 仅超级管理员可降级
+        if not admin or admin.username != 'administrator':
+            return jsonify({'message': '没有权限执行此操作'}), 403
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'message': '用户不存在'}), 404
+        if user.role != 'admin':
+            return jsonify({'message': '该用户不是管理员'}), 400
+        if user.username == 'administrator':
+            return jsonify({'message': '不能降级超级管理员'}), 400
+        user.role = 'user'
+        db.session.commit()
+        return jsonify({'code': 200, 'message': '降级成功'})
+    except Exception as e:
+        print(f"降级管理员错误: {str(e)}")
+        return jsonify({'message': '操作失败'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 

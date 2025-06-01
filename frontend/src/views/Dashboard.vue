@@ -48,7 +48,7 @@
             <span v-show="!isSidebarCollapsed">个人资料</span>
           </div>
           <div 
-            v-if="userRole === 'admin'"
+            v-if="userRole === 'admin' || isSuperAdmin"
             class="nav-item" 
             :class="{ 'active': currentView === 'admin', 'collapsed': isSidebarCollapsed }"
             @click="switchView('admin')"
@@ -57,7 +57,7 @@
             <span v-show="!isSidebarCollapsed">管理系统</span>
           </div>
           <div 
-            v-if="userRole === 'admin'"
+            v-if="userRole === 'admin' || isSuperAdmin"
             class="nav-item" 
             :class="{ 'active': currentView === 'report', 'collapsed': isSidebarCollapsed }"
             @click="switchView('report')"
@@ -336,10 +336,18 @@
                   <td>{{ user.role === 'admin' ? '管理员' : '普通用户' }}</td>
                   <td>{{ user.is_banned ? '已封禁' : '正常' }}</td>
                   <td>
-                    <button v-if="!user.is_banned" @click="handleUserAction(user.id, 'ban')" class="btn-warning">封禁</button>
-                    <button v-else @click="handleUserAction(user.id, 'unban')" class="btn-success">解封</button>
-                    <button v-if="user.role !== 'admin'" @click="handleUserAction(user.id, 'promote')" class="btn-primary">提升为管理员</button>
-                    <button v-if="user.role !== 'admin'" @click="handleUserAction(user.id, 'delete')" class="btn-danger">删除</button>
+                    <template v-if="user.username === 'administrator'">
+                      <!-- 超级管理员无操作 -->
+                    </template>
+                    <template v-else-if="user.role === 'admin'">
+                      <button v-if="isSuperAdmin" @click="handleUserAction(user.id, 'demote')" class="btn-info">降级为普通用户</button>
+                    </template>
+                    <template v-else>
+                      <button v-if="!user.is_banned" @click="handleUserAction(user.id, 'ban')" class="btn-warning">封禁</button>
+                      <button v-else @click="handleUserAction(user.id, 'unban')" class="btn-success">解封</button>
+                      <button v-if="userRole === 'admin' || isSuperAdmin" @click="handleUserAction(user.id, 'promote')" class="btn-primary">提升为管理员</button>
+                      <button @click="handleUserAction(user.id, 'delete')" class="btn-danger">删除</button>
+                    </template>
                   </td>
                 </tr>
               </tbody>
@@ -849,14 +857,21 @@ const fetchAdminStats = async () => {
 
 // 用户操作处理函数
 const handleUserAction = async (userId, action) => {
-  if (!confirm(`确定要${action === 'ban' ? '封禁' : action === 'unban' ? '解封' : action === 'delete' ? '删除' : '提升为管理员'}该用户吗？`)) {
+  let actionText = ''
+  switch (action) {
+    case 'ban': actionText = '封禁'; break;
+    case 'unban': actionText = '解封'; break;
+    case 'delete': actionText = '删除'; break;
+    case 'promote': actionText = '提升为管理员'; break;
+    case 'demote': actionText = '降级为普通用户'; break;
+  }
+  if (!confirm(`确定要${actionText}该用户吗？`)) {
     return
   }
 
   try {
     let url = ''
     let method = 'POST'
-    
     switch (action) {
       case 'ban':
         url = `http://localhost:5000/api/admin/user/${userId}/ban`
@@ -871,15 +886,16 @@ const handleUserAction = async (userId, action) => {
       case 'promote':
         url = `http://localhost:5000/api/admin/user/${userId}/promote`
         break
+      case 'demote':
+        url = `http://localhost:5000/api/admin/user/${userId}/demote`
+        break
     }
-
     const response = await fetch(url, {
       method,
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
     })
-
     const data = await response.json()
     if (data.code === 200) {
       alert(data.message)
@@ -1278,6 +1294,9 @@ const handleReportAction = async (action) => {
 
 // 添加当前举报项的 ID
 const currentReportId = ref(null)
+
+// 1. script setup 部分，增加 isSuperAdmin 变量
+const isSuperAdmin = computed(() => username.value === 'administrator')
 </script>
 
 <style>
