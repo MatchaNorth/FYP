@@ -1692,9 +1692,9 @@ def show_article(article_id):
 @jwt_required()
 def admin_delete_article(article_id):
     current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
+    current_user = User.query.filter_by(username=current_user_id).first()
     
-    if not current_user or current_user.role != 'admin':
+    if not current_user or (current_user.role != 'admin' and current_user.username != 'administrator'):
         return jsonify({
             'code': 403,
             'message': '权限不足'
