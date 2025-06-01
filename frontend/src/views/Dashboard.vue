@@ -1223,8 +1223,14 @@ const getReportTextStyle = (count) => {
   const color = percent > 0.7 ? '#fff' : percent > 0.4 ? '#fffbe6' : '#EF4444'
   return { color, fontWeight: 'bold' }
 }
-
-watch(reportTab, fetchReportSummary, { immediate: true })
+// 1. script setup 部分，增加 isSuperAdmin 变量
+const isSuperAdmin = computed(() => username.value === 'administrator')
+// 监听 reportTab，只有管理员才自动获取举报统计
+watch(reportTab, () => {
+  if (userRole.value === 'admin' || isSuperAdmin.value) {
+    fetchReportSummary()
+  }
+}, { immediate: true })
 
 // 在 script setup 部分添加处理函数
 const handleReportAction = async (action) => {
@@ -1317,8 +1323,7 @@ const handleReportAction = async (action) => {
 // 添加当前举报项的 ID
 const currentReportId = ref(null)
 
-// 1. script setup 部分，增加 isSuperAdmin 变量
-const isSuperAdmin = computed(() => username.value === 'administrator')
+
 </script>
 
 <style>

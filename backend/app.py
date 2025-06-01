@@ -721,13 +721,13 @@ def update_article(article_id):
 def delete_article(article_id):
     try:
         current_user_id = get_jwt_identity()
+        # 修正：确保 current_user_id 为 int
+        user = User.query.filter_by(username=current_user_id).first()
+        if not user:
+            return jsonify({'code': 403, 'message': '没有权限删除该文章'}), 403
         article = Article.query.get_or_404(article_id)
-        # 检查是否为作者
-        if article.author_id != current_user_id:
-            return jsonify({
-                'code': 403,
-                'message': '没有权限删除该文章'
-            }), 403
+        if article.author_id != user.id:
+            return jsonify({'code': 403, 'message': '没有权限删除该文章'}), 403
         # 删除相关的点赞记录
         ArticleLike.query.filter_by(article_id=article_id).delete()
         # 删除文章举报记录
@@ -743,18 +743,11 @@ def delete_article(article_id):
         comments = Comment.query.filter_by(article_id=article_id, parent_id=None).all()
         for comment in comments:
             delete_comment_and_children(comment.id)
-        # 删除文章
         db.session.delete(article)
         db.session.commit()
-        return jsonify({
-            'code': 200,
-            'message': '删除文章成功'
-        })
+        return jsonify({'code': 200, 'message': '删除文章成功'})
     except Exception as e:
-        return jsonify({
-            'code': 500,
-            'message': str(e)
-        }), 500
+        return jsonify({'code': 500, 'message': str(e)}), 500
 
 @app.route('/api/user/avatar', methods=['POST'])
 @jwt_required()
