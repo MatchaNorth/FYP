@@ -93,6 +93,7 @@ class User(db.Model):
     articles = db.relationship('Article', backref='author', lazy=True)
     avatar = db.Column(db.String(255))  # 用户头像URL
     is_banned = db.Column(db.Boolean, default=False)
+    is_reported = db.Column(db.Integer, default=0)
 
     def __init__(self, username, password, nickname=None):
         self.username = username
@@ -113,7 +114,8 @@ class User(db.Model):
             'heybox_avatar': self.heybox_avatar,
             'heybox_profile': self.heybox_profile,
             'avatar': self.avatar,
-            'is_banned': self.is_banned
+            'is_banned': self.is_banned,
+            'is_reported': self.is_reported
         }
 
 # 用户点赞记录模型
@@ -2043,6 +2045,49 @@ def demote_admin(user_id):
     except Exception as e:
         print(f"降级管理员错误: {str(e)}")
         return jsonify({'message': '操作失败'}), 500
+
+@app.route('/api/users/<int:user_id>/report', methods=['POST'])
+@jwt_required()
+def report_user(user_id):
+    try:
+        reporter = User.query.filter_by(username=get_jwt_identity()).first()
+        if not reporter:
+            return jsonify({'message': '举报人不存在'}), 404
+        reported = User.query.get(user_id)
+        if not reported:
+            return jsonify({'message': '被举报用户不存在'}), 404
+        # is_reported +1
+        if not hasattr(reported, 'is_reported'):
+            return jsonify({'message': '数据库未添加is_reported字段'}), 500
+        reported.is_reported = (reported.is_reported or 0) + 1
+        # 添加举报记录
+        report = Report(
+            report_type='user',
+            reporter_username=reporter.username,
+            reported_username=reported.username,
+            #report_time=get_cn_datetime(),
+            target_id=reported.id
+        )
+        db.session.add(report)
+        db.session.commit()
+        return jsonify({'code': 200, 'message': '举报成功'})
+    except Exception as e:
+        db.session.rollback()
+        print(f'举报用户错误: {str(e)}')
+        return jsonify({'message': '举报失败'}), 500
+
+@app.route('/api/users/<int:user_id>/report/status', methods=['GET'])
+@jwt_required()
+def user_report_status(user_id):
+    user = User.query.filter_by(username=get_jwt_identity()).first()
+    if not user:
+        return jsonify({'message': '用户不存在'}), 404
+    reported = Report.query.filter_by(
+        report_type='user',
+        reporter_username=user.username,
+        target_id=user_id
+    ).first()
+    return jsonify({'code': 200, 'reported': bool(reported)})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 

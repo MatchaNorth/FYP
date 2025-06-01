@@ -429,7 +429,7 @@
               <el-table-column prop="reporter_username" label="举报人" width="120" />
               <el-table-column prop="report_time" label="举报时间" />
             </el-table>
-            <div class="report-actions" v-if="reportTab === 'comment' || reportTab === 'article'">
+            <div class="report-actions" v-if="reportTab === 'comment' || reportTab === 'article' || reportTab === 'user'">
               <el-button 
                 v-if="reportTab === 'comment'"
                 type="danger" 
@@ -452,10 +452,17 @@
                 </el-button>
               </template>
               <el-button 
+                v-if="reportTab === 'user'"
+                type="danger"
+                @click="handleReportAction('ban_user')"
+              >
+                封禁用户
+              </el-button>
+              <el-button 
                 type="primary" 
                 @click="handleReportAction('view')"
               >
-                查看{{ reportTab === 'comment' ? '评论' : '文章' }}
+                查看{{ reportTab === 'comment' ? '评论' : reportTab === 'article' ? '文章' : '用户' }}
               </el-button>
             </div>
           </el-dialog>
@@ -1271,13 +1278,28 @@ const handleReportAction = async (action) => {
           } else {
             ElMessage.warning('无法获取评论所属文章')
           }
-        } else {
+        } else if (reportTab.value === 'article') {
           if (currentItem.id) {
-            router.push(`/article/${currentItem.id}`)
+            router.push(`/articles/public/${currentItem.id}`)
           } else {
             ElMessage.warning('无法获取文章信息')
           }
         }
+        else if (reportTab.value === 'user') {
+          router.push(`/user/${currentItem.id}`)
+        }
+        break
+
+      case 'ban_user':
+        await ElMessageBox.confirm('确定要封禁该用户吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+        await axios.post(`http://localhost:5000/api/admin/user/${currentItem.id}/ban`, {}, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        })
+        ElMessage.success('用户已封禁')
         break
     }
     

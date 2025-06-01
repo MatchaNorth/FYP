@@ -16,7 +16,12 @@
           </div>
         </div>
         <div class="profile-info">
-          <h1>{{ userInfo.nickname }}</h1>
+          <h1>
+            <span class="nickname-gradient">{{ userInfo.nickname }}</span>
+            <button v-if="showReportBtn" class="report-btn" @click="handleReportUser" :disabled="hasReported">
+              {{ hasReported ? '已举报' : '举报' }}
+            </button>
+          </h1>
           <p class="user-bio">{{ userInfo.bio || '这个用户很懒，还没有写简介' }}</p>
           <div class="user-stats">
             <div class="stat-item">
@@ -101,7 +106,7 @@
           <h3><i class="el-icon-document"></i> 最近发布</h3>
           <div class="article-list">
             <div 
-              v-for="article in userInfo.recentArticles" 
+              v-for="article in filteredRecentArticles" 
               :key="article.id"
               class="article-card"
               @click="viewArticle(article.id)"
@@ -109,7 +114,7 @@
               <div class="article-cover" :style="{ backgroundImage: `url(${article.cover})` }">
                 <div class="article-meta">
                   <span class="article-date">
-                    <i class="el-icon-time"></i> {{ formatDate(article.publishDate) }}
+                    <i class="el-icon-time"></i> {{ formatDate(article.publishDate || article.created_at) }}
                   </span>
                   <span class="article-views">
                     <i class="el-icon-view"></i> {{ article.views }}
@@ -133,7 +138,7 @@
               </div>
             </div>
           </div>
-          <div class="view-more" v-if="userInfo.articleCount > userInfo.recentArticles.length">
+          <div class="view-more" v-if="userInfo.articleCount > filteredRecentArticles.length">
             <el-button type="primary" plain>查看更多文章</el-button>
           </div>
         </div>
@@ -143,17 +148,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import * as echarts from 'echarts'
 import { ElMessage } from 'element-plus'
+import { getCurrentInstance } from 'vue'
 
 const route = useRoute()
 const router = useRouter()
 const isDark = ref(false)
 const heatmapChart = ref(null)
 const heatmapContainer = ref(null)
+const currentUser = ref('')
+const showReportBtn = ref(false)
+const hasReported = ref(false)
 
 const userInfo = ref({
   id: '',
@@ -173,9 +182,27 @@ const userInfo = ref({
   activityData: []
 })
 
+const filteredRecentArticles = computed(() => {
+  return userInfo.value.recentArticles.filter(article => !article.is_hidden)
+})
+
 // 格式化日期
 const formatDate = (date) => {
-  return new Date(date).toLocaleDateString('zh-CN', {
+  if (!date) return ''
+  // 兼容字符串、时间戳、ISO格式
+  let d = date
+  if (typeof date === 'object' && date instanceof Date) {
+    d = date
+  } else if (typeof date === 'string') {
+    // 尝试兼容 created_at、publishDate 字段
+    d = date.replace('T', ' ').replace(/\..*$/, '')
+    d = d.replace(/-/g, '/') // 兼容Safari
+    d = new Date(d)
+  } else {
+    d = new Date(date)
+  }
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
@@ -277,6 +304,34 @@ const fetchUserInfo = async () => {
   }
 }
 
+// 获取当前用户信息
+const fetchCurrentUser = () => {
+  try {
+    currentUser.value = localStorage.getItem('username') || ''
+    showReportBtn.value = currentUser.value && currentUser.value !== userInfo.value.nickname && currentUser.value !== userInfo.value.username
+  } catch {}
+}
+
+// 处理举报用户
+const handleReportUser = async () => {
+  if (hasReported.value) return
+  try {
+    const userId = route.params.id
+    const token = localStorage.getItem('token')
+    const res = await axios.post(`http://localhost:5000/api/users/${userId}/report`, {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (res.data && res.data.code === 200) {
+      ElMessage.success('举报成功，管理员会尽快处理！')
+      hasReported.value = true
+    } else {
+      ElMessage.error(res.data.message || '举报失败')
+    }
+  } catch (e) {
+    ElMessage.error('举报失败')
+  }
+}
+
 // 监听窗口大小变化，重绘热力图
 window.addEventListener('resize', () => {
   if (heatmapChart.value) {
@@ -286,6 +341,20 @@ window.addEventListener('resize', () => {
 
 onMounted(() => {
   fetchUserInfo()
+  fetchCurrentUser()
+  hasReported.value = false // 每次进入页面重置
+  // 新增：判断是否已举报
+  const userId = route.params.id
+  const token = localStorage.getItem('token')
+  if (token) {
+    axios.get(`http://localhost:5000/api/users/${userId}/report/status`, {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(res => {
+      if (res.data && res.data.code === 200) {
+        hasReported.value = res.data.reported
+      }
+    })
+  }
 })
 </script>
 
@@ -606,12 +675,16 @@ onMounted(() => {
   background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  display: flex;
+  align-items: center;
+  overflow: visible !important;
+  height: auto !important;
 }
 
 .user-bio {
   color: var(--text-secondary);
   font-size: clamp(14px, 2vw, 16px);
-  margin-bottom: 24px;
+  margin-top: 24px;
   line-height: 1.6;
 }
 
@@ -989,5 +1062,37 @@ onMounted(() => {
   .content-grid {
     padding: 16px;
   }
+}
+
+.nickname-gradient {
+  background: linear-gradient(to right, var(--primary), var(--primary-light));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-fill-color: transparent;
+}
+
+.report-btn {
+  margin-left: 16px;
+  vertical-align: middle;
+  color: #fff !important;
+  font-weight: bold;
+  min-width: 60px;
+  padding: 6px 18px;
+  font-size: 16px !important;
+  border: none;
+  border-radius: 4px;
+  opacity: 1 !important;
+  position: relative;
+  z-index: 10;
+  transition: background 0.2s;
+  background: #f56c6c !important;
+  -webkit-text-fill-color: #fff !important;
+  text-fill-color: #fff !important;
+}
+
+.report-btn:disabled {
+  background: #aaa !important;
+  cursor: not-allowed;
 }
 </style>
